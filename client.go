@@ -110,6 +110,14 @@ const (
 	rvnPathExpressionVariable                = "#rvn"
 	rvnValueExpressionVariable               = ":rvn"
 	skPathExpressionVariable                 = "#sk"
+
+	attrData                = "data"
+	attrOwnerName           = "ownerName"
+	attrLeaseDuration       = "leaseDuration"
+	attrRecordVersionNumber = "recordVersionNumber"
+	attrIsReleased          = "isReleased"
+
+	defaultBuffer = 1 * time.Second
 )
 
 var (
@@ -235,16 +243,6 @@ func DisableHeartbeat() ClientOption {
 func WithLogger(l Logger) ClientOption {
 	return func(c *Client) { c.logger = l }
 }
-
-const (
-	attrData                = "data"
-	attrOwnerName           = "ownerName"
-	attrLeaseDuration       = "leaseDuration"
-	attrRecordVersionNumber = "recordVersionNumber"
-	attrIsReleased          = "isReleased"
-
-	defaultBuffer = 1 * time.Second
-)
 
 // AcquireLockOption allows to change how the lock is actually held by the
 // client.
