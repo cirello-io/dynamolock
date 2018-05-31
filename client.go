@@ -425,12 +425,14 @@ func (c *Client) upsertAndMonitorExpiredLock(
 	recordVersionNumber string,
 ) (*Lock, error) {
 	var conditionalExpression string
-	expressionAttributeValues := make(map[string]*dynamodb.AttributeValue)
-	expressionAttributeValues[rvnValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(existingLock.recordVersionNumber)}
+	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
+		rvnValueExpressionVariable: &dynamodb.AttributeValue{S: aws.String(existingLock.recordVersionNumber)},
+	}
 
-	expressionAttributeNames := make(map[string]*string)
-	expressionAttributeNames[pkPathExpressionVariable] = aws.String(c.partitionKeyName)
-	expressionAttributeNames[rvnPathExpressionVariable] = aws.String(attrRecordVersionNumber)
+	expressionAttributeNames := map[string]*string{
+		pkPathExpressionVariable:  aws.String(c.partitionKeyName),
+		rvnPathExpressionVariable: aws.String(attrRecordVersionNumber),
+	}
 
 	if c.sortKeyName != nil {
 		conditionalExpression = pkExistsAndSkExistsAndRvnIsTheSameCondition
@@ -464,12 +466,14 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	recordVersionNumber string,
 ) (*Lock, error) {
 
-	expressionAttributeNames := make(map[string]*string)
-	expressionAttributeNames[pkPathExpressionVariable] = aws.String(c.partitionKeyName)
-	expressionAttributeNames[isReleasedPathExpressionVariable] = aws.String(attrIsReleased)
+	expressionAttributeNames := map[string]*string{
+		pkPathExpressionVariable:         aws.String(c.partitionKeyName),
+		isReleasedPathExpressionVariable: aws.String(attrIsReleased),
+	}
 
-	expressionAttributeValues := make(map[string]*dynamodb.AttributeValue)
-	expressionAttributeValues[isReleasedValueExpressionVariable] = isReleasedAttributeValue
+	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
+		isReleasedValueExpressionVariable: isReleasedAttributeValue,
+	}
 
 	req := &dynamodb.PutItemInput{
 		Item:                      item,
@@ -700,14 +704,16 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 	// 3. The lock already exists (UpdateItem API can cause a new item to be created if you do not condition the primary keys with attribute_exists)
 
 	var conditionalExpression string
-	expressionAttributeValues := make(map[string]*dynamodb.AttributeValue)
-	expressionAttributeValues[rvnValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(lockItem.recordVersionNumber)}
-	expressionAttributeValues[ownerNameValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(lockItem.ownerName)}
-	expressionAttributeNames := make(map[string]*string)
-	expressionAttributeNames[pkPathExpressionVariable] = aws.String(c.partitionKeyName)
-	expressionAttributeNames[leaseDurationPathValueExpressionVariable] = aws.String(attrLeaseDuration)
-	expressionAttributeNames[rvnPathExpressionVariable] = aws.String(attrRecordVersionNumber)
-	expressionAttributeNames[ownerNamePathExpressionVariable] = aws.String(attrOwnerName)
+	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
+		rvnValueExpressionVariable:       &dynamodb.AttributeValue{S: aws.String(lockItem.recordVersionNumber)},
+		ownerNameValueExpressionVariable: &dynamodb.AttributeValue{S: aws.String(lockItem.ownerName)},
+	}
+	expressionAttributeNames := map[string]*string{
+		pkPathExpressionVariable:                 aws.String(c.partitionKeyName),
+		leaseDurationPathValueExpressionVariable: aws.String(attrLeaseDuration),
+		rvnPathExpressionVariable:                aws.String(attrRecordVersionNumber),
+		ownerNamePathExpressionVariable:          aws.String(attrOwnerName),
+	}
 
 	if c.sortKeyName != nil {
 		conditionalExpression = pkExistsAndSkExistsAndOwnerNameSameAndRvnSameCondition
