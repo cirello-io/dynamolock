@@ -31,6 +31,7 @@ type acquireLockOptions struct {
 	refreshPeriod               time.Duration
 	additionalTimeToWaitForLock time.Duration
 	additionalAttributes        map[string]*dynamodb.AttributeValue
+	// TODO: session monitor
 }
 
 type lockClientOptions struct {
@@ -41,8 +42,6 @@ type lockClientOptions struct {
 	ownerName        string
 	leaseDuration    time.Duration
 	heartbeatPeriod  time.Duration
-	// Boolean createHeartbeatBackgroundThread
-	// Function<String, ThreadFactory> namedThreadCreator
 }
 
 type getLockOptions struct {

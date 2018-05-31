@@ -250,6 +250,14 @@ const (
 // client.
 type AcquireLockOption func(*acquireLockOptions)
 
+// WithSortKeyOnAcquire is the sort key to try and acquire the lock on (specify
+// if and only if the table has sort keys).
+func WithSortKeyOnAcquire(sortKey string) AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.sortKey = &sortKey
+	}
+}
+
 // WithData stores the content into the lock itself.
 func WithData(b []byte) AcquireLockOption {
 	return func(opt *acquireLockOptions) {
@@ -261,6 +269,42 @@ func WithData(b []byte) AcquireLockOption {
 func ReplaceData() AcquireLockOption {
 	return func(opt *acquireLockOptions) {
 		opt.replaceData = true
+	}
+}
+
+// WithDeleteLockOnRelease defines whether or not the lock should be deleted
+// when Close() is called on the resulting LockItem will force the new content
+// to be stored in the key.
+func WithDeleteLockOnRelease() AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.deleteLockOnRelease = true
+	}
+}
+
+// WithRefreshPeriod defines how long to wait before trying to get the lock
+// again (if set to 10 seconds, for example, it would attempt to do so every 10
+// seconds).
+func WithRefreshPeriod(d time.Duration) AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.refreshPeriod = d
+	}
+}
+
+// WithAdditionalTimeToWaitForLock defines how long to wait in addition to the
+// lease duration (if set to 10 minutes, this will try to acquire a lock for at
+// least 10 minutes before giving up and throwing the exception). If set,
+// TimeUnit must also be set.
+func WithAdditionalTimeToWaitForLock(d time.Duration) AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.additionalTimeToWaitForLock = d
+	}
+}
+
+// WithAdditionalAttributes stores some additional attributes with each lock.
+// This can be used to add any arbitrary parameters to each lock row.
+func WithAdditionalAttributes(attr map[string]*dynamodb.AttributeValue) AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.additionalAttributes = attr
 	}
 }
 

@@ -89,3 +89,13 @@ func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDurationToEnsure
 func (l *Lock) OwnerName() string {
 	return l.ownerName
 }
+
+// AdditionalAttributes returns the lock's additional data stored during
+// acquisition.
+func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
+	addAttr := make(map[string]*dynamodb.AttributeValue)
+	for k, v := range l.additionalAttributes {
+		addAttr[k] = v
+	}
+	return addAttr
+}
