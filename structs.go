@@ -31,7 +31,7 @@ type acquireLockOptions struct {
 	refreshPeriod               time.Duration
 	additionalTimeToWaitForLock time.Duration
 	additionalAttributes        map[string]*dynamodb.AttributeValue
-	// TODO: session monitor
+	sessionMonitor              *sessionMonitor
 }
 
 type lockClientOptions struct {
@@ -78,4 +78,29 @@ type sendHeartbeatOptions struct {
 	data                  []byte
 	deleteData            bool
 	leaseDurationToEnsure time.Duration
+}
+
+type sessionMonitor struct {
+	safeTime time.Duration
+	callback func()
+}
+
+func (s *sessionMonitor) isLeaseEnteringDangerZone(lastAbsoluteTime time.Time) bool {
+	return s.timeUntilLeaseEntersDangerZone(lastAbsoluteTime) <= 0
+}
+
+func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time) time.Duration {
+	return lastAbsoluteTime.Add(s.safeTime).Sub(time.Now())
+}
+
+func (s *sessionMonitor) runCallback() {
+	if s.callback == nil {
+		return
+	}
+
+	go s.callback()
+}
+
+func (s *sessionMonitor) hasCallback() bool {
+	return s.callback != nil
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ type Lock struct {
 	ownerName           string
 	deleteLockOnRelease bool
 	isReleased          bool
+	sessionMonitor      *sessionMonitor
 
 	lookupTime           time.Time
 	recordVersionNumber  string
@@ -98,4 +100,34 @@ func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
 		addAttr[k] = v
 	}
 	return addAttr
+}
+
+// AmIAboutToExpire returns whether or not the lock is entering the "danger
+// zone" time period.
+//
+// It returns if the lock has been released or the lock's lease has entered the
+// "danger zone". It returns false if the lock has not been released and the
+// lock has not yet entered the "danger zone"
+func (l *Lock) AmIAboutToExpire() (bool, error) {
+	t, err := l.timeUntilDangerZoneEntered()
+	if err != nil {
+		return false, err
+	}
+	return t <= 0, nil
+}
+
+// Errors related to session manager life-cycle.
+var (
+	ErrSessionMonitorNotSet = errors.New("session monitor is not set")
+	ErrLockAlreadyReleased  = errors.New("lock is already released")
+)
+
+func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
+	if l.sessionMonitor == nil {
+		return 0, ErrSessionMonitorNotSet
+	}
+	if l.isReleased {
+		return 0, errors.New("lock is already released")
+	}
+	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
 }

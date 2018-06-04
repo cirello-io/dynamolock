@@ -275,3 +275,97 @@ func TestReadLockContent(t *testing.T) {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
 }
+
+func TestSessionMonitor(t *testing.T) {
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithOwnerName("TestSessionMonitor#1"),
+		dynamolock.DisableHeartbeat(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		},
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	var sessionMonitorWasTriggered bool
+	data := []byte("some content a")
+	lockedItem, err := c.AcquireLock("uhura",
+		dynamolock.WithData(data),
+		dynamolock.ReplaceData(),
+		dynamolock.WithSessionMonitor(500*time.Millisecond, func() {
+			sessionMonitorWasTriggered = true
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(4 * time.Second)
+
+	if !sessionMonitorWasTriggered {
+		t.Fatal("session monitor was not triggered")
+	}
+
+	t.Log("isExpired", lockedItem.IsExpired())
+}
+
+func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
+		dynamolock.DisableHeartbeat(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		},
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	var sessionMonitorWasTriggered bool
+	data := []byte("some content a")
+	lockedItem, err := c.AcquireLock("scotty",
+		dynamolock.WithData(data),
+		dynamolock.ReplaceData(),
+		dynamolock.WithSessionMonitor(50*time.Millisecond, func() {
+			sessionMonitorWasTriggered = true
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lockedItem.Close()
+
+	if sessionMonitorWasTriggered {
+		t.Fatal("session monitor must not be triggered")
+	}
+
+	t.Log("isExpired", lockedItem.IsExpired())
+}

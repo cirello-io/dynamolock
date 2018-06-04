@@ -81,6 +81,7 @@ limitations under the License.
 package dynamolock
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -164,10 +165,11 @@ type Client struct {
 	partitionKeyName string
 	sortKeyName      *string
 
-	leaseDuration   time.Duration
-	heartbeatPeriod time.Duration
-	ownerName       string
-	locks           sync.Map
+	leaseDuration               time.Duration
+	heartbeatPeriod             time.Duration
+	ownerName                   string
+	locks                       sync.Map
+	sessionMonitorCancellations sync.Map
 
 	logger Logger
 
@@ -306,6 +308,40 @@ func WithAdditionalAttributes(attr map[string]*dynamodb.AttributeValue) AcquireL
 	}
 }
 
+// WithSessionMonitor registers a callback that is triggered if the lock is
+// about to expire.
+//
+// The purpose of this construct is to provide two abilities: provide
+// the ability to determine if the lock is about to expire, and run a
+// user-provided callback when the lock is about to expire. The advantage
+// this provides is notification that your lock is about to expire before it
+// is actually expired, and in case of leader election will help in
+// preventing that there are no two leaders present simultaneously.
+//
+// If due to any reason heartbeating is unsuccessful for a configurable
+// period of time, your lock enters into a phase known as "danger zone." It
+// is during this "danger zone" that the callback will be run.
+//
+// Bear in mind that the callback may be null. In this
+// case, no callback will be run upon the lock entering the "danger zone";
+// yet, one can still make use of the Lock.AmIAboutToExpire() call.
+// Furthermore, non-null callbacks can only ever be executed once in a
+// lock's lifetime. Independent of whether or not a callback is run, the
+// client will attempt to heartbeat the lock until the lock is released or
+// obtained by someone else.
+//
+// Consider an example which uses this mechanism for leader election. One
+// way to make use of this SessionMonitor is to register a callback that
+// kills the instance in case the leader's lock enters the danger zone:
+func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.sessionMonitor = &sessionMonitor{
+			safeTime: safeTime,
+			callback: callback,
+		}
+	}
+}
+
 // AcquireLock holds the defined lock.
 func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
 	req := &acquireLockOptions{
@@ -348,6 +384,8 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 	replaceData := opt.replaceData
 
 	currentTimeMillis := time.Now()
+
+	sessionMonitor := opt.sessionMonitor
 
 	var lockTryingToBeAcquired *Lock
 	var alreadySleptOnceForOneLeasePeriod bool
@@ -405,7 +443,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		if existingLock == nil || existingLock.isReleased {
 			return c.upsertAndMonitorNewOrReleasedLock(opt, key,
 				sortKey, deleteLockOnRelease,
-				newLockData, item, recordVersionNumber)
+				newLockData, item, recordVersionNumber, sessionMonitor)
 		}
 
 		// we know that we didnt enter the if block above because it returns at the end.
@@ -430,7 +468,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 					return c.upsertAndMonitorExpiredLock(opt,
 						key, sortKey, deleteLockOnRelease,
 						existingLock, newLockData, item,
-						recordVersionNumber)
+						recordVersionNumber, sessionMonitor)
 				}
 			} else {
 				/*
@@ -465,6 +503,7 @@ func (c *Client) upsertAndMonitorExpiredLock(
 	newLockData []byte,
 	item map[string]*dynamodb.AttributeValue,
 	recordVersionNumber string,
+	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
 	var conditionalExpression string
 	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
@@ -493,9 +532,9 @@ func (c *Client) upsertAndMonitorExpiredLock(
 
 	c.logger.Println("Acquiring an existing lock whose revisionVersionNumber did not change for ",
 		c.partitionKeyName, " partitionKeyName=", key, ", ", c.sortKeyName, "=", sortKey)
-	return c.putLockItem(opt, key, sortKey,
+	return c.putLockItemAndStartSessionMonitor(opt, key, sortKey,
 		deleteLockOnRelease, newLockData,
-		recordVersionNumber, putItemRequest)
+		recordVersionNumber, sessionMonitor, putItemRequest)
 }
 
 func (c *Client) upsertAndMonitorNewOrReleasedLock(
@@ -506,6 +545,7 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	newLockData []byte,
 	item map[string]*dynamodb.AttributeValue,
 	recordVersionNumber string,
+	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
 
 	expressionAttributeNames := map[string]*string{
@@ -533,18 +573,19 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 		c.partitionKeyName, "=", key, ", ",
 		aws.StringValue(c.sortKeyName), "=", aws.StringValue(sortKey),
 	)
-	return c.putLockItem(opt, key, sortKey,
+	return c.putLockItemAndStartSessionMonitor(opt, key, sortKey,
 		deleteLockOnRelease, newLockData,
-		recordVersionNumber, req)
+		recordVersionNumber, sessionMonitor, req)
 }
 
-func (c *Client) putLockItem(
+func (c *Client) putLockItemAndStartSessionMonitor(
 	opt *acquireLockOptions,
 	key string,
 	sortKey *string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	recordVersionNumber string,
+	sessionMonitor *sessionMonitor,
 	putItemRequest *dynamodb.PutItemInput) (*Lock, error) {
 
 	lastUpdatedTime := time.Now()
@@ -571,10 +612,12 @@ func (c *Client) putLockItem(
 		lookupTime:           lastUpdatedTime,
 		recordVersionNumber:  recordVersionNumber,
 		additionalAttributes: opt.additionalAttributes,
+		sessionMonitor:       sessionMonitor,
 	}
 
 	c.locks.Store(lockItem.uniqueIdentifier(), lockItem)
 	c.enforceHeartbeat()
+	c.tryAddSessionMonitor(lockItem.uniqueIdentifier(), lockItem)
 	return lockItem, nil
 }
 
@@ -906,7 +949,7 @@ func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, e
 	for _, opt := range opts {
 		opt(releaseLockOptions)
 	}
-	return c.releaseLockOptions(releaseLockOptions)
+	return c.releaseLock(releaseLockOptions)
 }
 
 // WithDeleteLock defines whether or not to delete the lock when releasing it.
@@ -932,7 +975,7 @@ func WithDataAfterRelease(data []byte) ReleaseLockOption {
 // during the act of releasing a lock.
 type ReleaseLockOption func(*releaseLockOptions)
 
-func (c *Client) releaseLockOptions(options *releaseLockOptions) (bool, error) {
+func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
 	lockItem := options.lockItem
 	if lockItem == nil {
 		return false, errors.New("cannot release null lock item")
@@ -1007,6 +1050,7 @@ func (c *Client) releaseLockOptions(options *releaseLockOptions) (bool, error) {
 			return false, err
 		}
 	}
+	c.removeKillSessionMonitor(lockItem.uniqueIdentifier())
 	return true, nil
 }
 
@@ -1080,4 +1124,45 @@ func (c *Client) Get(key string, opts ...GetOptions) (*Lock, error) {
 // Close releases all of the locks.
 func (c *Client) Close() {
 	c.releaseAllLocks()
+}
+
+func (c *Client) tryAddSessionMonitor(lockName string, lock *Lock) {
+	if lock.sessionMonitor != nil && lock.sessionMonitor.callback != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		c.lockSessionMonitorChecker(ctx, lockName, lock)
+		c.sessionMonitorCancellations.Store(lockName, cancel)
+	}
+}
+
+func (c *Client) removeKillSessionMonitor(monitorName string) {
+	sm, ok := c.sessionMonitorCancellations.Load(monitorName)
+	if !ok {
+		return
+	}
+	cancel := sm.(func())
+	cancel()
+}
+
+func (c *Client) lockSessionMonitorChecker(ctx context.Context,
+	monitorName string, lock *Lock) {
+	go func() {
+		defer c.sessionMonitorCancellations.Delete(monitorName)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				timeUntilDangerZone, err := lock.timeUntilDangerZoneEntered()
+				if err != nil {
+					c.logger.Println("cannot run session monitor because", err)
+					return
+				}
+				if timeUntilDangerZone <= 0 {
+					go lock.sessionMonitor.callback()
+					return
+				}
+				time.Sleep(timeUntilDangerZone)
+			}
+		}
+	}()
 }
