@@ -78,7 +78,7 @@ limitations under the License.
 //		log.Fatal("error releasing lock:", err)
 //	}
 //	log.Println("done")
-package dynamolock
+package dynamolock // import "cirello.io/dynamolock"
 
 import (
 	"context"
