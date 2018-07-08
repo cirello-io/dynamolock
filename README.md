@@ -127,3 +127,5 @@ the lock is stale and expire it.
 
 What this means is that, even if two different machines disagree about what time
 it is, they will still avoid clobbering each other's locks.
+
+---
