@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
+func isDynamoLockAvailable(t *testing.T) {
+	_, err := net.Dial("tcp", "localhost:8000")
+	if err != nil {
+		t.Skipf("cannot dial to dynamoDB: %v", err)
+	}
+}
 func TestClientBasicFlow(t *testing.T) {
+	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(session.New(), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
@@ -124,6 +132,7 @@ func TestClientBasicFlow(t *testing.T) {
 }
 
 func TestHeartbeatHandover(t *testing.T) {
+	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(session.New(), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
@@ -217,6 +226,7 @@ func TestHeartbeatHandover(t *testing.T) {
 }
 
 func TestReadLockContent(t *testing.T) {
+	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(session.New(), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
@@ -277,6 +287,7 @@ func TestReadLockContent(t *testing.T) {
 }
 
 func TestSessionMonitor(t *testing.T) {
+	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(session.New(), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
@@ -324,6 +335,7 @@ func TestSessionMonitor(t *testing.T) {
 }
 
 func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
+	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(session.New(), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
