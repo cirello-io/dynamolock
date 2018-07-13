@@ -102,13 +102,13 @@ func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
 	return addAttr
 }
 
-// AmIAboutToExpire returns whether or not the lock is entering the "danger
+// IsAlmostExpired returns whether or not the lock is entering the "danger
 // zone" time period.
 //
 // It returns if the lock has been released or the lock's lease has entered the
 // "danger zone". It returns false if the lock has not been released and the
 // lock has not yet entered the "danger zone"
-func (l *Lock) AmIAboutToExpire() (bool, error) {
+func (l *Lock) IsAlmostExpired() (bool, error) {
 	t, err := l.timeUntilDangerZoneEntered()
 	if err != nil {
 		return false, err

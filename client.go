@@ -201,7 +201,7 @@ func WithData(b []byte) AcquireLockOption {
 	}
 }
 
-// ReplaceData will force the new content to be stored in the key
+// ReplaceData will force the new content to be stored in the key.
 func ReplaceData() AcquireLockOption {
 	return func(opt *acquireLockOptions) {
 		opt.replaceData = true
@@ -228,8 +228,7 @@ func WithRefreshPeriod(d time.Duration) AcquireLockOption {
 
 // WithAdditionalTimeToWaitForLock defines how long to wait in addition to the
 // lease duration (if set to 10 minutes, this will try to acquire a lock for at
-// least 10 minutes before giving up and throwing the exception). If set,
-// TimeUnit must also be set.
+// least 10 minutes before giving up and returning an error).
 func WithAdditionalTimeToWaitForLock(d time.Duration) AcquireLockOption {
 	return func(opt *acquireLockOptions) {
 		opt.additionalTimeToWaitForLock = d
@@ -260,7 +259,7 @@ func WithAdditionalAttributes(attr map[string]*dynamodb.AttributeValue) AcquireL
 //
 // Bear in mind that the callback may be null. In this
 // case, no callback will be run upon the lock entering the "danger zone";
-// yet, one can still make use of the Lock.AmIAboutToExpire() call.
+// yet, one can still make use of the Lock.IsAlmostExpired() call.
 // Furthermore, non-null callbacks can only ever be executed once in a
 // lock's lifetime. Independent of whether or not a callback is run, the
 // client will attempt to heartbeat the lock until the lock is released or
@@ -792,7 +791,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 // CreateTable prepares a DynamoDB table with the right schema for it to be used
 // by this locking library. The table should be set up in advance, because it
 // takes a few minutes for DynamoDB to provision a new instance. Also, if the
-// table already exists, this will throw an exception.
+// table already exists, it will return an error.
 //
 // This method lets you specify a sort key to be used by the lock client. This
 // sort key then needs to be specified in the AmazonDynamoDBLockClientOptions
