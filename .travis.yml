@@ -9,3 +9,7 @@ services:
 
 before_install:
   - docker run -d -p 8000:8000 dwmkerr/dynamodb
+
+script:
+  - go get -u golang.org/x/vgo
+  - vgo test -v ./...
