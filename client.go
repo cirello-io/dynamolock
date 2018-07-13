@@ -442,7 +442,7 @@ func (c *Client) upsertAndMonitorExpiredLock(
 ) (*Lock, error) {
 	var conditionalExpression string
 	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable: &dynamodb.AttributeValue{S: aws.String(existingLock.recordVersionNumber)},
+		rvnValueExpressionVariable: {S: aws.String(existingLock.recordVersionNumber)},
 	}
 
 	expressionAttributeNames := map[string]*string{
@@ -572,7 +572,7 @@ func (c *Client) getLockFromDynamoDB(opt getLockOptions) (*Lock, error) {
 
 func (c *Client) readFromDynamoDB(key string, sortKey *string) (*dynamodb.GetItemOutput, error) {
 	dynamoDBKey := map[string]*dynamodb.AttributeValue{
-		c.partitionKeyName: &dynamodb.AttributeValue{S: aws.String(key)},
+		c.partitionKeyName: {S: aws.String(key)},
 	}
 	if sortKey != nil {
 		dynamoDBKey[aws.StringValue(sortKey)] = &dynamodb.AttributeValue{S: sortKey}
@@ -725,8 +725,8 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 
 	var conditionalExpression string
 	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable:       &dynamodb.AttributeValue{S: aws.String(lockItem.recordVersionNumber)},
-		ownerNameValueExpressionVariable: &dynamodb.AttributeValue{S: aws.String(lockItem.ownerName)},
+		rvnValueExpressionVariable:       {S: aws.String(lockItem.recordVersionNumber)},
+		ownerNameValueExpressionVariable: {S: aws.String(lockItem.ownerName)},
 	}
 	expressionAttributeNames := map[string]*string{
 		pkPathExpressionVariable:                 aws.String(c.partitionKeyName),
@@ -834,14 +834,14 @@ func WithCustomSortKeyName(s string) CreateTableOption {
 
 func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
 	keySchema := []*dynamodb.KeySchemaElement{
-		&dynamodb.KeySchemaElement{
+		{
 			AttributeName: aws.String(opt.partitionKeyName),
 			KeyType:       aws.String(dynamodb.KeyTypeHash),
 		},
 	}
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
-		&dynamodb.AttributeDefinition{
+		{
 			AttributeName: aws.String(opt.partitionKeyName),
 			AttributeType: aws.String("S"),
 		},
@@ -929,8 +929,8 @@ func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
 
 	var conditionalExpression string
 	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable:       &dynamodb.AttributeValue{S: aws.String(lockItem.recordVersionNumber)},
-		ownerNameValueExpressionVariable: &dynamodb.AttributeValue{S: aws.String(lockItem.ownerName)},
+		rvnValueExpressionVariable:       {S: aws.String(lockItem.recordVersionNumber)},
+		ownerNameValueExpressionVariable: {S: aws.String(lockItem.ownerName)},
 	}
 	expressionAttributeNames := map[string]*string{
 		pkPathExpressionVariable:        aws.String(c.partitionKeyName),
@@ -1000,7 +1000,7 @@ func (c *Client) releaseAllLocks() error {
 
 func (c *Client) getItemKeys(lockItem *Lock) map[string]*dynamodb.AttributeValue {
 	key := map[string]*dynamodb.AttributeValue{
-		c.partitionKeyName: &dynamodb.AttributeValue{S: aws.String(lockItem.partitionKey)},
+		c.partitionKeyName: {S: aws.String(lockItem.partitionKey)},
 	}
 	if lockItem.sortKey != nil {
 		key[*c.sortKeyName] = &dynamodb.AttributeValue{S: lockItem.sortKey}
