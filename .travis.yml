@@ -11,5 +11,4 @@ install: true
 
 script:
   - docker run -d -p 8000:8000 dwmkerr/dynamodb
-  - go get -u golang.org/x/vgo
-  - vgo test -v ./...
+  - go test -v ./...
