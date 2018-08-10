@@ -1,6 +1,6 @@
 language: go
 sudo: required
-go_import_path: cirello.io/bookmarkd
+go_import_path: cirello.io/dynamolock
 go:
   - "1.x"
 
