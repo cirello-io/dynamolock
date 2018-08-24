@@ -2,7 +2,7 @@ language: go
 sudo: required
 go_import_path: cirello.io/dynamolock
 go:
-  - "1.x"
+  - "1.11"
 
 services:
   - docker
