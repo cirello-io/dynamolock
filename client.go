@@ -1048,7 +1048,7 @@ func (c *Client) Get(key string, opts ...GetOptions) (*Lock, error) {
 		return nil, err
 	}
 
-	if lockItem.isReleased {
+	if lockItem == nil || lockItem.isReleased {
 		return &Lock{}, nil
 	}
 
