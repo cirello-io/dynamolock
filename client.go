@@ -209,6 +209,13 @@ func ReplaceData() AcquireLockOption {
 	}
 }
 
+// FailIfLocked will not retry to acquire the lock, instead returning.
+func FailIfLocked() AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.failIfLocked = true
+	}
+}
+
 // WithDeleteLockOnRelease defines whether or not the lock should be deleted
 // when Close() is called on the resulting LockItem will force the new content
 // to be stored in the key.
@@ -333,7 +340,6 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 	}
 
 	for {
-
 		c.logger.Println("Call GetItem to see if the lock for ",
 			c.partitionKeyName, " =", key, ", ",
 			aws.StringValue(c.sortKeyName), "=", sortKey,
@@ -392,6 +398,12 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 			 * Someone else has the lock, and they have the lock for LEASE_DURATION time. At this point, we need
 			 * to wait at least LEASE_DURATION milliseconds before we can try to acquire the lock.
 			 */
+
+			// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
+			if opt.failIfLocked {
+				return nil, &LockNotGrantedError{"Didn't acquire lock because it is locked and request is configured not to retry."}
+			}
+
 			lockTryingToBeAcquired = existingLock
 			if !alreadySleptOnceForOneLeasePeriod {
 				alreadySleptOnceForOneLeasePeriod = true

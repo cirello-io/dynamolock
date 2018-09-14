@@ -28,6 +28,7 @@ type acquireLockOptions struct {
 	data                        []byte
 	replaceData                 bool
 	deleteLockOnRelease         bool
+	failIfLocked                bool
 	refreshPeriod               time.Duration
 	additionalTimeToWaitForLock time.Duration
 	additionalAttributes        map[string]*dynamodb.AttributeValue
