@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
 const (
@@ -95,7 +96,7 @@ type Logger interface {
 
 // Client is a dynamoDB based distributed lock client.
 type Client struct {
-	dynamoDB *dynamodb.DynamoDB
+	dynamoDB dynamodbiface.DynamoDBAPI
 
 	tableName        string
 	partitionKeyName string
@@ -120,7 +121,7 @@ const (
 )
 
 // New creates a new dynamoDB based distributed lock client.
-func New(dynamoDB *dynamodb.DynamoDB, tableName string, opts ...ClientOption) (*Client, error) {
+func New(dynamoDB dynamodbiface.DynamoDBAPI, tableName string, opts ...ClientOption) (*Client, error) {
 	c := &Client{
 		dynamoDB:         dynamoDB,
 		tableName:        tableName,

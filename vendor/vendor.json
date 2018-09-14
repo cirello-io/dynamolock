@@ -153,6 +153,12 @@
 			"revisionTime": "2018-01-26T09:42:54Z"
 		},
 		{
+			"checksumSHA1": "jiu18uX90vwyNtuge8QorSRALDw=",
+			"path": "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
+			"revision": "e328eead5072a5d35267b4075f156aea47be9638",
+			"revisionTime": "2018-01-26T09:42:54Z"
+		},
+		{
 			"checksumSHA1": "W1oFtpaT4TWIIJrAvFcn/XdcT7g=",
 			"path": "github.com/aws/aws-sdk-go/service/sts",
 			"revision": "e328eead5072a5d35267b4075f156aea47be9638",
