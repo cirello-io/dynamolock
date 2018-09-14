@@ -609,9 +609,13 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]*dynamodb.At
 	// call to DynamoDB succeeds
 	lookupTime := time.Now()
 
-	parsedLeaseDuration, err := time.ParseDuration(aws.StringValue(leaseDuration.S))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse lease duration: %s", err)
+	var parsedLeaseDuration time.Duration
+	if leaseDuration != nil {
+		var err error
+		parsedLeaseDuration, err = time.ParseDuration(aws.StringValue(leaseDuration.S))
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse lease duration: %s", err)
+		}
 	}
 
 	lockItem := &Lock{
