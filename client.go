@@ -1075,8 +1075,13 @@ func (c *Client) removeKillSessionMonitor(monitorName string) {
 	if !ok {
 		return
 	}
-	cancel := sm.(func())
-	cancel()
+	if cancel, ok := sm.(func()); ok {
+		cancel()
+	} else if cancel, ok := sm.(context.CancelFunc); ok {
+		cancel()
+	} else {
+		panic("impossible to cancel")
+	}
 }
 
 func (c *Client) lockSessionMonitorChecker(ctx context.Context,
