@@ -34,10 +34,9 @@ To use the DynamoDB Lock Client for Go, you must make it sure it is present in
 ```sh
 $ go get -u cirello.io/dynamolock
 ```
-or if you are using `dep`:
-```sh
-$ dep ensure -add cirello.io/dynamolock
-```
+
+This package has the `go.mod` file to be used with Go's module system. If you
+need to work on this package, use `go mod edit -replace=cirello.io/dynamolock@yourlocalcopy`.
 
 Then, you need to set up a DynamoDB table that has a hash key on a key with the
 name `key`. For your convenience, there is a function in the package called
