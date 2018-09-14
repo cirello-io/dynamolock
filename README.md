@@ -1,10 +1,8 @@
+# DynamoDB Lock Client for Go
+
 [![Build Status](https://travis-ci.org/ucirello/dynamolock.svg?branch=master)](https://travis-ci.org/ucirello/dynamolock)
 
 This repository is covered by this [SLA](https://github.com/ucirello/public/blob/master/SLA.md).
-
----
-
-# DynamoDB Lock Client for Go
 
 The dymanoDB Lock Client for Go is a general purpose distributed locking library
 built for DynamoDB. The dynamoDB Lock Client for Go supports both fine-grained

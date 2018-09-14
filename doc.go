@@ -78,4 +78,8 @@ limitations under the License.
 //		log.Fatal("error releasing lock:", err)
 //	}
 //	log.Println("done")
+//
+// This package is covered by this SLA:
+// https://github.com/ucirello/public/blob/master/SLA.md
+//
 package dynamolock // import "cirello.io/dynamolock"
