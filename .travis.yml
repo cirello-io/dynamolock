@@ -7,8 +7,12 @@ go:
 services:
   - docker
 
+before_install:
+  - go get github.com/mattn/goveralls
+
 install: true
 
 script:
   - docker run -d -p 8000:8000 dwmkerr/dynamodb
-  - go test -v ./...
+  - go test -covermode=count -coverprofile=profile.cov -v ./...
+  - $GOPATH/bin/goveralls -coverprofile=profile.cov -service=travis-ci
