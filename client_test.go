@@ -381,3 +381,20 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 
 	t.Log("isExpired", lockedItem.IsExpired())
 }
+
+func TestInvalidLeaseHeartbeatRation(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	_, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(1*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+	)
+	if err == nil {
+		t.Fatal("expected error not found")
+	}
+}
