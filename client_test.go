@@ -435,3 +435,58 @@ func TestFailIfLocked(t *testing.T) {
 		return
 	}
 }
+
+func TestClientWithAdditionalAttributes(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	t.Run("good attributes", func(t *testing.T) {
+		lockedItem, err := c.AcquireLock(
+			"good attributes",
+			dynamolock.WithAdditionalAttributes(map[string]*dynamodb.AttributeValue{
+				"hello": &dynamodb.AttributeValue{S: aws.String("world")},
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attrs := lockedItem.AdditionalAttributes()
+		if v, ok := attrs["hello"]; !ok || v == nil || aws.StringValue(v.S) != "world" {
+			t.Error("corrupted attribute set")
+		}
+		lockedItem.Close()
+	})
+	t.Run("bad attributes", func(t *testing.T) {
+		_, err := c.AcquireLock(
+			"bad attributes",
+			dynamolock.WithAdditionalAttributes(map[string]*dynamodb.AttributeValue{
+				"ownerName": &dynamodb.AttributeValue{S: aws.String("fakeOwner")},
+			}),
+		)
+		if err == nil {
+			t.Fatal("expected error not found")
+		}
+	})
+}
