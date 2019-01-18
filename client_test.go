@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock"
+	"github.com/chen-anders/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -53,10 +53,10 @@ func TestClientBasicFlow(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
-		},
+		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
@@ -151,10 +151,10 @@ func TestHeartbeatHandover(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
-		},
+		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
@@ -244,10 +244,10 @@ func TestReadLockContent(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
-		},
+		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
@@ -305,10 +305,10 @@ func TestSessionMonitor(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
-		},
+		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
@@ -353,10 +353,10 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
-		},
+		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
