@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chen-anders/dynamolock"
+	"cirello.io/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"

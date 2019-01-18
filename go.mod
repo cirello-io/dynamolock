@@ -1,4 +1,4 @@
-module github.com/chen-anders/dynamolock
+module cirello.io/dynamolock
 
 require (
 	github.com/aws/aws-sdk-go v1.16.17
