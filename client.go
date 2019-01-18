@@ -813,11 +813,11 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 // This method lets you specify a sort key to be used by the lock client. This
 // sort key then needs to be specified in the AmazonDynamoDBLockClientOptions
 // when the lock client object is created.
-func (c *Client) CreateTable(tableName string, provisionedThroughput *dynamodb.ProvisionedThroughput, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	createTableOptions := &createDynamoDBTableOptions{
-		tableName:             tableName,
-		provisionedThroughput: provisionedThroughput,
-		partitionKeyName:      defaultPartitionKeyName,
+		tableName:        tableName,
+		billingMode:      "PAY_PER_REQUEST",
+		partitionKeyName: defaultPartitionKeyName,
 	}
 
 	for _, opt := range opts {
@@ -846,6 +846,15 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 func WithCustomSortKeyName(s string) CreateTableOption {
 	return func(opt *createDynamoDBTableOptions) {
 		opt.sortKeyName = &s
+	}
+}
+
+// WithProvisionedThroughput changes the billing mode of DynamoDB
+// and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request
+func WithProvisionedThroughput(provisionedThroughput *dynamodb.ProvisionedThroughput) CreateTableOption {
+	return func(opt *createDynamoDBTableOptions) {
+		opt.billingMode = "PROVISIONED"
+		opt.provisionedThroughput = provisionedThroughput
 	}
 }
 
@@ -878,10 +887,14 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 	}
 
 	createTableInput := &dynamodb.CreateTableInput{
-		TableName:             aws.String(opt.tableName),
-		KeySchema:             keySchema,
-		ProvisionedThroughput: opt.provisionedThroughput,
-		AttributeDefinitions:  attributeDefinitions,
+		TableName:            aws.String(opt.tableName),
+		KeySchema:            keySchema,
+		BillingMode:          aws.String(opt.billingMode),
+		AttributeDefinitions: attributeDefinitions,
+	}
+
+	if opt.provisionedThroughput != nil {
+		createTableInput.ProvisionedThroughput = opt.provisionedThroughput
 	}
 
 	return c.dynamoDB.CreateTable(createTableInput)

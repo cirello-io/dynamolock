@@ -68,6 +68,7 @@ func (e *LockNotGrantedError) Error() string {
 }
 
 type createDynamoDBTableOptions struct {
+	billingMode           string
 	provisionedThroughput *dynamodb.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string

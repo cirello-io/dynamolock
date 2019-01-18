@@ -4,11 +4,15 @@ go_import_path: cirello.io/dynamolock
 go:
   - "1.11"
 
+env:
+  - GO111MODULE=on AWS_ACCESS_KEY_ID=AKID AWS_SECRET_ACCESS_KEY=SECRET
+
 services:
   - docker
 
 before_install:
   - go get github.com/mattn/goveralls
+  - go mod download
 
 install: true
 
