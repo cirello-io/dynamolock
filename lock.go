@@ -55,7 +55,9 @@ func (l *Lock) Data() []byte {
 
 // Close releases the lock.
 func (l *Lock) Close() {
-	go l.client.ReleaseLock(l)
+	if l != nil && l.client != nil {
+		go l.client.ReleaseLock(l)
+	}
 }
 
 func (l *Lock) uniqueIdentifier() string {
@@ -89,6 +91,9 @@ func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDurationToEnsure
 
 // OwnerName returns the lock's owner.
 func (l *Lock) OwnerName() string {
+	if l == nil {
+		return ""
+	}
 	return l.ownerName
 }
 
@@ -123,6 +128,9 @@ var (
 )
 
 func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
+	if l == nil {
+		return 0, ErrLockAlreadyReleased
+	}
 	if l.sessionMonitor == nil {
 		return 0, ErrSessionMonitorNotSet
 	}
