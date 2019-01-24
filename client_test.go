@@ -47,6 +47,7 @@ func TestClientBasicFlow(t *testing.T) {
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +146,7 @@ func TestHeartbeatHandover(t *testing.T) {
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestHeartbeatHandover#1"),
 		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -238,6 +240,7 @@ func TestReadLockContent(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContent#1"),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -299,6 +302,7 @@ func TestSessionMonitor(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitor#1"),
 		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -347,6 +351,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
 		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -412,6 +417,7 @@ func TestFailIfLocked(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("FailIfLocked#1"),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -449,6 +455,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -504,6 +511,7 @@ func TestDeleteLockOnRelease(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestDeleteLockOnRelease#1"),
+		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
