@@ -378,8 +378,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	lockedItem.Close()
+	go lockedItem.Close()
 
 	if sessionMonitorWasTriggered {
 		t.Fatal("session monitor must not be triggered")
