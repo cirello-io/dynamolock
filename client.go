@@ -849,8 +849,10 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 // otherwise.
 func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
 	releaseLockOptions := &releaseLockOptions{
-		lockItem:   lockItem,
-		deleteLock: lockItem.deleteLockOnRelease,
+		lockItem: lockItem,
+	}
+	if lockItem != nil {
+		releaseLockOptions.deleteLock = lockItem.deleteLockOnRelease
 	}
 
 	for _, opt := range opts {

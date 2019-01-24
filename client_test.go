@@ -691,6 +691,49 @@ func TestClientClose(t *testing.T) {
 	}
 }
 
+func TestInvalidReleases(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestInvalidReleases#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	var l *dynamolock.Lock
+	if _, err := c.ReleaseLock(l); err == nil {
+		t.Fatal("nil locks should trigger error on release:", err)
+	} else {
+		t.Log("nil lock:", err)
+	}
+
+	emptyLock := &dynamolock.Lock{}
+	if released, err := c.ReleaseLock(emptyLock); released || err != nil {
+		t.Fatal("empty locks should return non-released flag and nil error:", released, err)
+	} else {
+		t.Log("emptyLock:", released, err)
+	}
+}
+
 type testLogger struct {
 	t *testing.T
 }
