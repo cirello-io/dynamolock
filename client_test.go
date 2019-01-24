@@ -597,6 +597,55 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	}
 }
 
+func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.DisableHeartbeat(),
+		dynamolock.WithOwnerName("TestCustomAdditionalTimeToWaitForLock#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	t.Log("acquire lock")
+	l, err := c.AcquireLock("custom-additional-time-to-wait")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for i := 0; i < 3; i++ {
+			c.SendHeartbeat(l)
+			time.Sleep(time.Second)
+		}
+	}()
+
+	t.Log("wait long enough to acquire lock again")
+	_, err = c.AcquireLock("custom-additional-time-to-wait",
+		dynamolock.WithAdditionalTimeToWaitForLock(6*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 type testLogger struct {
 	t *testing.T
 }
