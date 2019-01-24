@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
@@ -31,7 +30,6 @@ type Lock struct {
 
 	client       *Client
 	partitionKey string
-	sortKey      *string
 
 	data                []byte
 	ownerName           string
@@ -65,7 +63,7 @@ func (l *Lock) uniqueIdentifier() string {
 		return ""
 	}
 
-	return l.partitionKey + aws.StringValue(l.sortKey)
+	return l.partitionKey
 }
 
 // IsExpired returns if the lock is expired, released, or neither.

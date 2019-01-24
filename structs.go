@@ -24,7 +24,6 @@ import (
 
 type acquireLockOptions struct {
 	partitionKey                string
-	sortKey                     *string
 	data                        []byte
 	replaceData                 bool
 	deleteLockOnRelease         bool
@@ -39,7 +38,6 @@ type lockClientOptions struct {
 	dynamoDBClient   *dynamodb.DynamoDB
 	tableName        string
 	partitionKeyName string
-	sortKeyName      *string
 	ownerName        string
 	leaseDuration    time.Duration
 	heartbeatPeriod  time.Duration
@@ -47,7 +45,6 @@ type lockClientOptions struct {
 
 type getLockOptions struct {
 	partitionKeyName    string
-	sortKeyName         *string
 	deleteLockOnRelease bool
 }
 
@@ -72,7 +69,6 @@ type createDynamoDBTableOptions struct {
 	provisionedThroughput *dynamodb.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string
-	sortKeyName           *string
 }
 
 type sendHeartbeatOptions struct {

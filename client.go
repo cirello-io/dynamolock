@@ -100,7 +100,6 @@ type Client struct {
 
 	tableName        string
 	partitionKeyName string
-	sortKeyName      *string
 
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
@@ -186,14 +185,6 @@ func WithLogger(l Logger) ClientOption {
 // AcquireLockOption allows to change how the lock is actually held by the
 // client.
 type AcquireLockOption func(*acquireLockOptions)
-
-// WithSortKeyOnAcquire is the sort key to try and acquire the lock on (specify
-// if and only if the table has sort keys).
-func WithSortKeyOnAcquire(sortKey string) AcquireLockOption {
-	return func(opt *acquireLockOptions) {
-		opt.sortKey = &sortKey
-	}
-}
 
 // WithData stores the content into the lock itself.
 func WithData(b []byte) AcquireLockOption {
@@ -298,7 +289,6 @@ func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, erro
 
 func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 	key := opt.partitionKey
-	sortKey := opt.sortKey
 
 	attrs := opt.additionalAttributes
 	contains := func(k string) bool {
@@ -308,7 +298,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 
 	if contains(c.partitionKeyName) || contains(attrOwnerName) ||
 		contains(attrLeaseDuration) || contains(attrRecordVersionNumber) ||
-		contains(attrData) || (c.sortKeyName != nil && contains(*c.sortKeyName)) {
+		contains(attrData) {
 		return nil, fmt.Errorf("Additional attribute cannot be one of the following types: %s, %s, %s, %s, %s",
 			c.partitionKeyName, attrOwnerName, attrLeaseDuration, attrRecordVersionNumber, attrData)
 	}
@@ -335,15 +325,12 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 
 	getLockOptions := getLockOptions{
 		partitionKeyName:    key,
-		sortKeyName:         sortKey,
 		deleteLockOnRelease: deleteLockOnRelease,
 	}
 
 	for {
 		c.logger.Println("Call GetItem to see if the lock for ",
-			c.partitionKeyName, " =", key, ", ",
-			aws.StringValue(c.sortKeyName), "=", sortKey,
-			" exists in the table")
+			c.partitionKeyName, " =", key, " exists in the table")
 		existingLock, err := c.getLockFromDynamoDB(getLockOptions)
 		if err != nil {
 			return nil, err
@@ -373,10 +360,6 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		recordVersionNumber := c.generateRecordVersionNumber()
 		item[attrRecordVersionNumber] = &dynamodb.AttributeValue{S: aws.String(recordVersionNumber)}
 
-		if c.sortKeyName != nil {
-			item[aws.StringValue(c.sortKeyName)] = &dynamodb.AttributeValue{S: sortKey}
-		}
-
 		if newLockData != nil {
 			item[attrData] = &dynamodb.AttributeValue{B: newLockData}
 		}
@@ -384,8 +367,8 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		//if the existing lock does not exist or exists and is released
 		if existingLock == nil || existingLock.isReleased {
 			return c.upsertAndMonitorNewOrReleasedLock(opt, key,
-				sortKey, deleteLockOnRelease,
-				newLockData, item, recordVersionNumber, sessionMonitor)
+				deleteLockOnRelease, newLockData, item,
+				recordVersionNumber, sessionMonitor)
 		}
 
 		// we know that we didnt enter the if block above because it returns at the end.
@@ -414,7 +397,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 				/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
 				if lockTryingToBeAcquired.IsExpired() {
 					return c.upsertAndMonitorExpiredLock(opt,
-						key, sortKey, deleteLockOnRelease,
+						key, deleteLockOnRelease,
 						existingLock, newLockData, item,
 						recordVersionNumber, sessionMonitor)
 				}
@@ -445,7 +428,6 @@ var pkExistsAndSkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
 func (c *Client) upsertAndMonitorExpiredLock(
 	opt *acquireLockOptions,
 	key string,
-	sortKey *string,
 	deleteLockOnRelease bool,
 	existingLock *Lock,
 	newLockData []byte,
@@ -463,12 +445,7 @@ func (c *Client) upsertAndMonitorExpiredLock(
 		rvnPathExpressionVariable: aws.String(attrRecordVersionNumber),
 	}
 
-	if c.sortKeyName != nil {
-		conditionalExpression = pkExistsAndSkExistsAndRvnIsTheSameCondition
-		expressionAttributeNames[skPathExpressionVariable] = c.sortKeyName
-	} else {
-		conditionalExpression = pkExistsAndRvnIsTheSameCondition
-	}
+	conditionalExpression = pkExistsAndRvnIsTheSameCondition
 
 	putItemRequest := &dynamodb.PutItemInput{
 		Item:                      item,
@@ -479,8 +456,8 @@ func (c *Client) upsertAndMonitorExpiredLock(
 	}
 
 	c.logger.Println("Acquiring an existing lock whose revisionVersionNumber did not change for ",
-		c.partitionKeyName, " partitionKeyName=", key, ", ", c.sortKeyName, "=", sortKey)
-	return c.putLockItemAndStartSessionMonitor(opt, key, sortKey,
+		c.partitionKeyName, " partitionKeyName=", key)
+	return c.putLockItemAndStartSessionMonitor(opt, key,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, putItemRequest)
 }
@@ -488,7 +465,6 @@ func (c *Client) upsertAndMonitorExpiredLock(
 func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	opt *acquireLockOptions,
 	key string,
-	sortKey *string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	item map[string]*dynamodb.AttributeValue,
@@ -517,11 +493,8 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	// lock into DynamoDB should err on the side of thinking the lock will
 	// expire sooner than it actually will, so they start counting towards
 	// its expiration before the Put succeeds
-	c.logger.Println("Acquiring a new lock or an existing yet released lock on ",
-		c.partitionKeyName, "=", key, ", ",
-		aws.StringValue(c.sortKeyName), "=", aws.StringValue(sortKey),
-	)
-	return c.putLockItemAndStartSessionMonitor(opt, key, sortKey,
+	c.logger.Println("Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", key)
+	return c.putLockItemAndStartSessionMonitor(opt, key,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, req)
 }
@@ -529,7 +502,6 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 func (c *Client) putLockItemAndStartSessionMonitor(
 	opt *acquireLockOptions,
 	key string,
-	sortKey *string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	recordVersionNumber string,
@@ -552,7 +524,6 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 	lockItem := &Lock{
 		client:               c,
 		partitionKey:         key,
-		sortKey:              sortKey,
 		data:                 newLockData,
 		deleteLockOnRelease:  deleteLockOnRelease,
 		ownerName:            c.ownerName,
@@ -570,7 +541,7 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 }
 
 func (c *Client) getLockFromDynamoDB(opt getLockOptions) (*Lock, error) {
-	res, err := c.readFromDynamoDB(opt.partitionKeyName, opt.sortKeyName)
+	res, err := c.readFromDynamoDB(opt.partitionKeyName)
 	if err != nil {
 		return nil, err
 	}
@@ -583,12 +554,9 @@ func (c *Client) getLockFromDynamoDB(opt getLockOptions) (*Lock, error) {
 	return c.createLockItem(opt, item)
 }
 
-func (c *Client) readFromDynamoDB(key string, sortKey *string) (*dynamodb.GetItemOutput, error) {
+func (c *Client) readFromDynamoDB(key string) (*dynamodb.GetItemOutput, error) {
 	dynamoDBKey := map[string]*dynamodb.AttributeValue{
 		c.partitionKeyName: {S: aws.String(key)},
-	}
-	if sortKey != nil {
-		dynamoDBKey[aws.StringValue(sortKey)] = &dynamodb.AttributeValue{S: sortKey}
 	}
 	return c.dynamoDB.GetItem(&dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
@@ -634,7 +602,6 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]*dynamodb.At
 	lockItem := &Lock{
 		client:               c,
 		partitionKey:         opt.partitionKeyName,
-		sortKey:              opt.sortKeyName,
 		data:                 data,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,
 		ownerName:            aws.StringValue(ownerName.S),
@@ -753,12 +720,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 		ownerNamePathExpressionVariable:          aws.String(attrOwnerName),
 	}
 
-	if c.sortKeyName != nil {
-		conditionalExpression = pkExistsAndSkExistsAndOwnerNameSameAndRvnSameCondition
-		expressionAttributeNames[skPathExpressionVariable] = c.sortKeyName
-	} else {
-		conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
-	}
+	conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
 
 	rvn := c.generateRecordVersionNumber()
 
@@ -842,14 +804,6 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 	}
 }
 
-// WithCustomSortKeyName changes the sort key name of the table. If not
-// specified, the table will only have a partition key.
-func WithCustomSortKeyName(s string) CreateTableOption {
-	return func(opt *createDynamoDBTableOptions) {
-		opt.sortKeyName = &s
-	}
-}
-
 // WithProvisionedThroughput changes the billing mode of DynamoDB
 // and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request
 func WithProvisionedThroughput(provisionedThroughput *dynamodb.ProvisionedThroughput) CreateTableOption {
@@ -872,19 +826,6 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 			AttributeName: aws.String(opt.partitionKeyName),
 			AttributeType: aws.String("S"),
 		},
-	}
-
-	if opt.sortKeyName != nil {
-		keySchema = append(keySchema, &dynamodb.KeySchemaElement{
-			AttributeName: opt.sortKeyName,
-			KeyType:       aws.String(dynamodb.KeyTypeRange),
-		})
-
-		attributeDefinitions = append(attributeDefinitions,
-			&dynamodb.AttributeDefinition{
-				AttributeName: opt.sortKeyName,
-				AttributeType: aws.String("S"),
-			})
 	}
 
 	createTableInput := &dynamodb.CreateTableInput{
@@ -969,12 +910,7 @@ func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
 		rvnPathExpressionVariable:       aws.String(attrRecordVersionNumber),
 	}
 
-	if c.sortKeyName != nil {
-		conditionalExpression = pkExistsAndSkExistsAndOwnerNameSameAndRvnSameCondition
-		expressionAttributeNames[skPathExpressionVariable] = c.sortKeyName
-	} else {
-		conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
-	}
+	conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
 
 	key := c.getItemKeys(lockItem)
 	if deleteLock {
@@ -1033,21 +969,11 @@ func (c *Client) getItemKeys(lockItem *Lock) map[string]*dynamodb.AttributeValue
 	key := map[string]*dynamodb.AttributeValue{
 		c.partitionKeyName: {S: aws.String(lockItem.partitionKey)},
 	}
-	if lockItem.sortKey != nil {
-		key[*c.sortKeyName] = &dynamodb.AttributeValue{S: lockItem.sortKey}
-	}
 	return key
 }
 
 // GetOptions allows to configure lock reads.
 type GetOptions func(*getLockOptions)
-
-// WithSortKeyName defines the sort key necessary to load the lock content.
-func WithSortKeyName(s string) GetOptions {
-	return func(o *getLockOptions) {
-		o.sortKeyName = &s
-	}
-}
 
 // Get finds out who owns the given lock, but does not acquire the lock. It
 // returns the metadata currently associated with the given lock. If the client
@@ -1065,9 +991,6 @@ func (c *Client) Get(key string, opts ...GetOptions) (*Lock, error) {
 	}
 
 	keyName := getLockOption.partitionKeyName
-	if getLockOption.sortKeyName != nil {
-		keyName += *getLockOption.sortKeyName
-	}
 
 	v, ok := c.locks.Load(keyName)
 	if ok {
