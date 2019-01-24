@@ -591,8 +591,9 @@ func (c *Client) readFromDynamoDB(key string, sortKey *string) (*dynamodb.GetIte
 		dynamoDBKey[aws.StringValue(sortKey)] = &dynamodb.AttributeValue{S: sortKey}
 	}
 	return c.dynamoDB.GetItem(&dynamodb.GetItemInput{
-		TableName: aws.String(c.tableName),
-		Key:       dynamoDBKey,
+		ConsistentRead: aws.Bool(true),
+		TableName:      aws.String(c.tableName),
+		Key:            dynamoDBKey,
 	})
 }
 
