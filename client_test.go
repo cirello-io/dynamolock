@@ -646,6 +646,51 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 }
 
+func TestClientClose(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestClientClose#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	if _, err := c.AcquireLock("bulkClose1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.AcquireLock("bulkClose2"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.AcquireLock("bulkClose3"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Close(); err != nil {
+		t.Fatal("cannot close lock client: ", err)
+	}
+}
+
 type testLogger struct {
 	t *testing.T
 }

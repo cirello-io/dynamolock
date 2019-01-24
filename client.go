@@ -1011,8 +1011,8 @@ func (c *Client) Get(key string, opts ...GetOptions) (*Lock, error) {
 }
 
 // Close releases all of the locks.
-func (c *Client) Close() {
-	c.releaseAllLocks()
+func (c *Client) Close() error {
+	return c.releaseAllLocks()
 }
 
 func (c *Client) tryAddSessionMonitor(lockName string, lock *Lock) {
