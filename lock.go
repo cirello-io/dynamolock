@@ -78,13 +78,13 @@ func (l *Lock) IsExpired() bool {
 	return time.Since(l.lookupTime) > l.leaseDuration
 }
 
-func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDurationToEnsure time.Duration) {
+func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDuration time.Duration) {
 	if l == nil {
 		return
 	}
 	l.recordVersionNumber = rvn
 	l.lookupTime = lastUpdate
-	l.leaseDuration = leaseDurationToEnsure
+	l.leaseDuration = leaseDuration
 }
 
 // OwnerName returns the lock's owner.

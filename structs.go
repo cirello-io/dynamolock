@@ -72,10 +72,9 @@ type createDynamoDBTableOptions struct {
 }
 
 type sendHeartbeatOptions struct {
-	lockItem              *Lock
-	data                  []byte
-	deleteData            bool
-	leaseDurationToEnsure time.Duration
+	lockItem   *Lock
+	data       []byte
+	deleteData bool
 }
 
 type sessionMonitor struct {

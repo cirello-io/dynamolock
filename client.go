@@ -689,10 +689,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 		return errors.New("data must not be present if deleteData is true")
 	}
 
-	leaseDurationToEnsure := c.leaseDuration
-	if options.leaseDurationToEnsure > 0 {
-		leaseDurationToEnsure = options.leaseDurationToEnsure
-	}
+	leaseDuration := c.leaseDuration
 
 	lockItem := options.lockItem
 	lockItem.semaphore.Lock()
@@ -726,7 +723,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 
 	var updateExpression string
 	expressionAttributeValues[newRvnValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(rvn)}
-	expressionAttributeValues[leaseDurationValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(leaseDurationToEnsure.String())}
+	expressionAttributeValues[leaseDurationValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(leaseDuration.String())}
 	if options.deleteData {
 		expressionAttributeNames[dataPathExpressionVariable] = aws.String(attrData)
 		updateExpression = updateLeaseDurationAndRvnAndRemoveData
@@ -764,7 +761,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 		return err
 	}
 
-	lockItem.updateRVN(rvn, lastUpdateOfLock, leaseDurationToEnsure)
+	lockItem.updateRVN(rvn, lastUpdateOfLock, leaseDuration)
 	return nil
 }
 
