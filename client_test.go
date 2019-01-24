@@ -17,7 +17,10 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"bytes"
+	"log"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -549,6 +552,48 @@ func TestDeleteLockOnRelease(t *testing.T) {
 	}
 	if !releasedLock.IsExpired() {
 		t.Fatal("non-existent locks should always returned as released")
+	}
+}
+
+func TestCustomRefreshPeriod(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestCustomRefreshPeriod#1"),
+		dynamolock.WithLogger(logger),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	lockedItem, err := c.AcquireLock("custom-refresh-period")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lockedItem.Close()
+
+	c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
+	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
+		t.Fatal("did not honor refreshPeriod")
 	}
 }
 

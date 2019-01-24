@@ -318,9 +318,9 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		millisecondsToWait = opt.additionalTimeToWaitForLock
 	}
 
-	refreshPeriodInMilliseconds := defaultBuffer
+	refreshPeriodDuration := defaultBuffer
 	if opt.refreshPeriod > 0 {
-		refreshPeriodInMilliseconds = opt.refreshPeriod
+		refreshPeriodDuration = opt.refreshPeriod
 	}
 
 	deleteLockOnRelease := opt.deleteLockOnRelease
@@ -428,10 +428,10 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		}
 
 		if t := time.Since(currentTimeMillis); t > millisecondsToWait {
-			return nil, &LockNotGrantedError{"Didn't acquire lock after sleeping for " + t.String() + " milliseconds"}
+			return nil, &LockNotGrantedError{"Didn't acquire lock after sleeping for " + t.String()}
 		}
-		c.logger.Println("Sleeping for a refresh period of ", refreshPeriodInMilliseconds)
-		time.Sleep(refreshPeriodInMilliseconds)
+		c.logger.Println("Sleeping for a refresh period of ", refreshPeriodDuration)
+		time.Sleep(refreshPeriodDuration)
 	}
 }
 
