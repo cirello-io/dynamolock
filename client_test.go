@@ -46,6 +46,7 @@ func TestClientBasicFlow(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -489,4 +490,12 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 			t.Fatal("expected error not found")
 		}
 	})
+}
+
+type testLogger struct {
+	t *testing.T
+}
+
+func (t *testLogger) Println(v ...interface{}) {
+	t.t.Log(v...)
 }
