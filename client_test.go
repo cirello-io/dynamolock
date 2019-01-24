@@ -492,6 +492,59 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 	})
 }
 
+func TestDeleteLockOnRelease(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestDeleteLockOnRelease#1"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "delete-lock-on-release"
+	data := []byte("some content a")
+	lockedItem, err := c.AcquireLock(
+		lockName,
+		dynamolock.WithData(data),
+		dynamolock.ReplaceData(),
+		dynamolock.WithDeleteLockOnRelease(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("lock content:", string(lockedItem.Data()))
+	if got := string(lockedItem.Data()); string(data) != got {
+		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+	}
+	lockedItem.Close()
+
+	releasedLock, err := c.Get(lockName)
+	if err != nil {
+		t.Fatal("cannot load lock from the database:", err)
+	}
+	if !releasedLock.IsExpired() {
+		t.Fatal("non-existent locks should always returned as released")
+	}
+}
+
 type testLogger struct {
 	t *testing.T
 }

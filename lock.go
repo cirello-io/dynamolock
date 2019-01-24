@@ -56,7 +56,7 @@ func (l *Lock) Data() []byte {
 // Close releases the lock.
 func (l *Lock) Close() {
 	if l != nil && l.client != nil {
-		go l.client.ReleaseLock(l)
+		l.client.ReleaseLock(l)
 	}
 }
 
