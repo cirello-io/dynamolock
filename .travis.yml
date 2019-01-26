@@ -17,6 +17,6 @@ before_install:
 install: true
 
 script:
-  - docker run -d -p 8000:8000 dwmkerr/dynamodb
+  - docker run -d -p 8000:8000 amazon/dynamodb-local
   - go test -covermode=count -coverprofile=profile.cov -v ./...
   - $GOPATH/bin/goveralls -coverprofile=profile.cov -service=travis-ci
