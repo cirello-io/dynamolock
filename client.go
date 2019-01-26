@@ -290,14 +290,17 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 	key := opt.partitionKey
 
 	attrs := opt.additionalAttributes
-	contains := func(k string) bool {
-		_, ok := attrs[k]
-		return ok
+	contains := func(ks ...string) bool {
+		for _, k := range ks {
+			if _, ok := attrs[k]; ok {
+				return true
+			}
+		}
+		return false
 	}
 
-	if contains(c.partitionKeyName) || contains(attrOwnerName) ||
-		contains(attrLeaseDuration) || contains(attrRecordVersionNumber) ||
-		contains(attrData) {
+	if contains(c.partitionKeyName, attrOwnerName, attrLeaseDuration,
+		attrRecordVersionNumber, attrData) {
 		return nil, fmt.Errorf("Additional attribute cannot be one of the following types: %s, %s, %s, %s, %s",
 			c.partitionKeyName, attrOwnerName, attrLeaseDuration, attrRecordVersionNumber, attrData)
 	}
