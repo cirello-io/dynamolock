@@ -647,10 +647,10 @@ func (c *Client) enforceHeartbeat() {
 
 func (c *Client) heartbeat() {
 	c.logger.Println("starting heartbeats")
-	for range time.Tick(c.heartbeatPeriod) {
-
+	tick := time.NewTicker(c.heartbeatPeriod)
+	defer tick.Stop()
+	for range tick.C {
 		touchedAnyLock := false
-
 		c.locks.Range(func(_ interface{}, value interface{}) bool {
 			touchedAnyLock = true
 
@@ -661,12 +661,10 @@ func (c *Client) heartbeat() {
 
 			return true
 		})
-
 		if !touchedAnyLock {
 			c.logger.Println("no locks in the client, stopping heartbeat")
-			break
+			return
 		}
-
 		c.mu.Lock()
 		c.lastHeartbeat = time.Now()
 		c.mu.Unlock()
