@@ -926,8 +926,6 @@ func (c *Client) removeKillSessionMonitor(monitorName string) {
 		cancel()
 	} else if cancel, ok := sm.(context.CancelFunc); ok {
 		cancel()
-	} else {
-		panic("impossible to cancel")
 	}
 }
 
