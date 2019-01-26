@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
@@ -124,16 +123,10 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 
 	_, err := c.dynamoDB.UpdateItem(updateItemInput)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeConditionalCheckFailedException:
-				c.locks.Delete(lockItem.uniqueIdentifier())
-				return &LockNotGrantedError{"already acquired lock, stopping heartbeats: " + aerr.Error()}
-			}
+		err := parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
+		if isLockNotGrantedError(err) {
+			c.locks.Delete(lockItem.uniqueIdentifier())
 		}
-
-		// Print the error, cast err to awserr.Error to get the Code and
-		// Message from an error.
 		return err
 	}
 

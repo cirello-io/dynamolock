@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
@@ -512,12 +511,7 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 
 	_, err := c.dynamoDB.PutItem(putItemRequest)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeConditionalCheckFailedException:
-				return nil, &LockNotGrantedError{"Could not acquire lock because someone else acquired it: " + aerr.Error()}
-			}
-		}
+		err := parseDynamoDBError(err, "lock already acquired by other client")
 		return nil, fmt.Errorf("cannot store lock item: %s", err)
 	}
 

@@ -54,16 +54,6 @@ type releaseLockOptions struct {
 	data       []byte
 }
 
-// LockNotGrantedError indicates that an AcquireLock call has failed to
-// establish a lock because of its current lifecycle state.
-type LockNotGrantedError struct {
-	msg string
-}
-
-func (e *LockNotGrantedError) Error() string {
-	return e.msg
-}
-
 type createDynamoDBTableOptions struct {
 	billingMode           string
 	provisionedThroughput *dynamodb.ProvisionedThroughput
