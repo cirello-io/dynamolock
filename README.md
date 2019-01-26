@@ -1,5 +1,6 @@
 # DynamoDB Lock Client for Go
 
+[![GoDoc](https://godoc.org/cirello.io/dynamolock?status.svg)](https://godoc.org/cirello.io/dynamolock)
 [![Build Status](https://travis-ci.org/ucirello/dynamolock.svg?branch=master)](https://travis-ci.org/ucirello/dynamolock)
 [![Coverage Status](https://coveralls.io/repos/github/ucirello/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/ucirello/dynamolock?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ucirello/dynamolock)](https://goreportcard.com/report/github.com/ucirello/dynamolock)
