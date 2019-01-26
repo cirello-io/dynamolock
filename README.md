@@ -1,6 +1,9 @@
 # DynamoDB Lock Client for Go
 
 [![Build Status](https://travis-ci.org/ucirello/dynamolock.svg?branch=master)](https://travis-ci.org/ucirello/dynamolock)
+[![Coverage Status](https://coveralls.io/repos/github/ucirello/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/ucirello/dynamolock?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ucirello/dynamolock)](https://goreportcard.com/report/github.com/ucirello/dynamolock)
+[![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/ucirello/public/blob/master/SLA.md)
 
 This repository is covered by this [SLA](https://github.com/ucirello/public/blob/master/SLA.md).
 
