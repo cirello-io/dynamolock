@@ -21,7 +21,6 @@ import (
 	"log"
 	"net"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -134,101 +133,6 @@ func TestClientBasicFlow(t *testing.T) {
 	if got := string(lockedItem3.Data()); string(data3) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data3), " got:", got)
 	}
-}
-
-func TestHeartbeatHandover(t *testing.T) {
-	isDynamoLockAvailable(t)
-	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
-	c, err := dynamolock.New(svc,
-		"locks",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestHeartbeatHandover#1"),
-		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("ensuring table exists")
-	c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
-		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
-	)
-
-	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("kirk",
-		dynamolock.WithData(data),
-		dynamolock.ReplaceData(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("lock content:", string(lockedItem.Data()))
-	if got := string(lockedItem.Data()); string(data) != got {
-		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 1; i < 3; i++ {
-			if err := c.SendHeartbeat(lockedItem); err != nil {
-				t.Log("sendHeartbeat error:", err)
-			}
-			time.Sleep(2 * time.Second)
-		}
-		time.Sleep(1 * time.Second)
-		if err := c.SendHeartbeat(lockedItem); err == nil {
-			t.Log("the heartbeat must fail after lock is lost")
-		}
-	}()
-
-	c2, err := dynamolock.New(svc,
-		"locks",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestHeartbeatHandover#2"),
-		dynamolock.DisableHeartbeat(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	data2 := []byte("some content b")
-	_, err = c2.AcquireLock("kirk",
-		dynamolock.WithData(data2),
-		dynamolock.ReplaceData(),
-	)
-	if err == nil {
-		t.Fatal("the first concurrent acquire lock should fail")
-	}
-
-	time.Sleep(6 * time.Second)
-	lockedItem2, err := c2.AcquireLock("kirk",
-		dynamolock.WithData(data2),
-		dynamolock.ReplaceData(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("lock content (competing client):", string(lockedItem2.Data()))
-	if got := string(lockedItem2.Data()); string(data2) != got {
-		t.Error("losing information inside lock storage, wanted:", string(data2), " got:", got)
-	}
-
-	wg.Wait()
 }
 
 func TestReadLockContent(t *testing.T) {

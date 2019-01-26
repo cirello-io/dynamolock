@@ -71,12 +71,6 @@ type createDynamoDBTableOptions struct {
 	partitionKeyName      string
 }
 
-type sendHeartbeatOptions struct {
-	lockItem   *Lock
-	data       []byte
-	deleteData bool
-}
-
 type sessionMonitor struct {
 	safeTime time.Duration
 	callback func()
