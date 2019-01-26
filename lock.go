@@ -64,10 +64,6 @@ func (l *Lock) Close() error {
 }
 
 func (l *Lock) uniqueIdentifier() string {
-	if l == nil {
-		return ""
-	}
-
 	return l.partitionKey
 }
 
@@ -84,9 +80,6 @@ func (l *Lock) IsExpired() bool {
 }
 
 func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDuration time.Duration) {
-	if l == nil {
-		return
-	}
 	l.recordVersionNumber = rvn
 	l.lookupTime = lastUpdate
 	l.leaseDuration = leaseDuration
