@@ -133,7 +133,7 @@ func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
 		return 0, ErrSessionMonitorNotSet
 	}
 	if l.isReleased {
-		return 0, errors.New("lock is already released")
+		return 0, ErrLockAlreadyReleased
 	}
 	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
 }
