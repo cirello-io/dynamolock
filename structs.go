@@ -60,28 +60,3 @@ type createDynamoDBTableOptions struct {
 	tableName             string
 	partitionKeyName      string
 }
-
-type sessionMonitor struct {
-	safeTime time.Duration
-	callback func()
-}
-
-func (s *sessionMonitor) isLeaseEnteringDangerZone(lastAbsoluteTime time.Time) bool {
-	return s.timeUntilLeaseEntersDangerZone(lastAbsoluteTime) <= 0
-}
-
-func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time) time.Duration {
-	return lastAbsoluteTime.Add(s.safeTime).Sub(time.Now())
-}
-
-func (s *sessionMonitor) runCallback() {
-	if s.callback == nil {
-		return
-	}
-
-	go s.callback()
-}
-
-func (s *sessionMonitor) hasCallback() bool {
-	return s.callback != nil
-}
