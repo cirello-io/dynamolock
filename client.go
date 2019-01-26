@@ -287,8 +287,6 @@ func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, erro
 }
 
 func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
-	key := opt.partitionKey
-
 	attrs := opt.additionalAttributes
 	contains := func(ks ...string) bool {
 		for _, k := range ks {
@@ -305,119 +303,133 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 			c.partitionKeyName, attrOwnerName, attrLeaseDuration, attrRecordVersionNumber, attrData)
 	}
 
-	millisecondsToWait := defaultBuffer
-	if opt.additionalTimeToWaitForLock > 0 {
-		millisecondsToWait = opt.additionalTimeToWaitForLock
-	}
-
-	refreshPeriodDuration := defaultBuffer
-	if opt.refreshPeriod > 0 {
-		refreshPeriodDuration = opt.refreshPeriod
-	}
-
-	deleteLockOnRelease := opt.deleteLockOnRelease
-	replaceData := opt.replaceData
-
-	currentTimeMillis := time.Now()
-
-	sessionMonitor := opt.sessionMonitor
-
-	var lockTryingToBeAcquired *Lock
-	var alreadySleptOnceForOneLeasePeriod bool
-
 	getLockOptions := getLockOptions{
-		partitionKeyName:    key,
-		deleteLockOnRelease: deleteLockOnRelease,
+		partitionKeyName:     opt.partitionKey,
+		deleteLockOnRelease:  opt.deleteLockOnRelease,
+		sessionMonitor:       opt.sessionMonitor,
+		start:                time.Now(),
+		replaceData:          opt.replaceData,
+		data:                 opt.data,
+		additionalAttributes: attrs,
+		failIfLocked:         opt.failIfLocked,
+	}
+
+	getLockOptions.millisecondsToWait = defaultBuffer
+	if opt.additionalTimeToWaitForLock > 0 {
+		getLockOptions.millisecondsToWait = opt.additionalTimeToWaitForLock
+	}
+
+	getLockOptions.refreshPeriodDuration = defaultBuffer
+	if opt.refreshPeriod > 0 {
+		getLockOptions.refreshPeriodDuration = opt.refreshPeriod
 	}
 
 	for {
-		c.logger.Println("Call GetItem to see if the lock for ",
-			c.partitionKeyName, " =", key, " exists in the table")
-		existingLock, err := c.getLockFromDynamoDB(getLockOptions)
-		if err != nil {
-			return nil, err
+		stop, l, err := c.storeLock(&getLockOptions)
+		if err != nil || stop {
+			return l, err
+		}
+	}
+}
+
+func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) {
+	c.logger.Println("Call GetItem to see if the lock for ",
+		c.partitionKeyName, " =", getLockOptions.partitionKeyName, " exists in the table")
+	existingLock, err := c.getLockFromDynamoDB(*getLockOptions)
+	if err != nil {
+		return true, nil, err
+	}
+
+	var newLockData []byte
+	if getLockOptions.replaceData {
+		newLockData = getLockOptions.data
+	} else if existingLock != nil {
+		newLockData = existingLock.data
+	}
+
+	if newLockData == nil {
+		// If there is no existing data, we write the input data to the lock.
+		newLockData = getLockOptions.data
+	}
+
+	item := make(map[string]*dynamodb.AttributeValue)
+
+	for k, v := range getLockOptions.additionalAttributes {
+		item[k] = v
+	}
+	item[c.partitionKeyName] = &dynamodb.AttributeValue{S: aws.String(getLockOptions.partitionKeyName)}
+	item[attrOwnerName] = &dynamodb.AttributeValue{S: aws.String(c.ownerName)}
+	item[attrLeaseDuration] = &dynamodb.AttributeValue{S: aws.String(c.leaseDuration.String())}
+
+	recordVersionNumber := c.generateRecordVersionNumber()
+	item[attrRecordVersionNumber] = &dynamodb.AttributeValue{S: aws.String(recordVersionNumber)}
+
+	if newLockData != nil {
+		item[attrData] = &dynamodb.AttributeValue{B: newLockData}
+	}
+
+	//if the existing lock does not exist or exists and is released
+	if existingLock == nil || existingLock.isReleased {
+		l, err := c.upsertAndMonitorNewOrReleasedLock(
+			getLockOptions.additionalAttributes,
+			getLockOptions.partitionKeyName,
+			getLockOptions.deleteLockOnRelease,
+			newLockData,
+			item,
+			recordVersionNumber,
+			getLockOptions.sessionMonitor)
+		return true, l, err
+	}
+
+	// we know that we didnt enter the if block above because it returns at the end.
+	// we also know that the existingLock.isPresent() is true
+	if getLockOptions.lockTryingToBeAcquired == nil {
+		//this branch of logic only happens once, in the first iteration of the while loop
+		//lockTryingToBeAcquired only ever gets set to non-null values after this point.
+		//so it is impossible to get in this
+		/*
+		 * Someone else has the lock, and they have the lock for LEASE_DURATION time. At this point, we need
+		 * to wait at least LEASE_DURATION milliseconds before we can try to acquire the lock.
+		 */
+
+		// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
+		if getLockOptions.failIfLocked {
+			return true, nil, &LockNotGrantedError{"Didn't acquire lock because it is locked and request is configured not to retry."}
 		}
 
-		var newLockData []byte
-		if replaceData {
-			newLockData = opt.data
-		} else if existingLock != nil {
-			newLockData = existingLock.data
+		getLockOptions.lockTryingToBeAcquired = existingLock
+		if !getLockOptions.alreadySleptOnceForOneLeasePeriod {
+			getLockOptions.alreadySleptOnceForOneLeasePeriod = true
+			getLockOptions.millisecondsToWait += existingLock.leaseDuration
 		}
-
-		if newLockData == nil {
-			// If there is no existing data, we write the input data to the lock.
-			newLockData = opt.data
-		}
-
-		item := make(map[string]*dynamodb.AttributeValue)
-
-		for k, v := range opt.additionalAttributes {
-			item[k] = v
-		}
-		item[c.partitionKeyName] = &dynamodb.AttributeValue{S: aws.String(key)}
-		item[attrOwnerName] = &dynamodb.AttributeValue{S: aws.String(c.ownerName)}
-		item[attrLeaseDuration] = &dynamodb.AttributeValue{S: aws.String(c.leaseDuration.String())}
-
-		recordVersionNumber := c.generateRecordVersionNumber()
-		item[attrRecordVersionNumber] = &dynamodb.AttributeValue{S: aws.String(recordVersionNumber)}
-
-		if newLockData != nil {
-			item[attrData] = &dynamodb.AttributeValue{B: newLockData}
-		}
-
-		//if the existing lock does not exist or exists and is released
-		if existingLock == nil || existingLock.isReleased {
-			return c.upsertAndMonitorNewOrReleasedLock(opt, key,
-				deleteLockOnRelease, newLockData, item,
-				recordVersionNumber, sessionMonitor)
-		}
-
-		// we know that we didnt enter the if block above because it returns at the end.
-		// we also know that the existingLock.isPresent() is true
-		if lockTryingToBeAcquired == nil {
-			//this branch of logic only happens once, in the first iteration of the while loop
-			//lockTryingToBeAcquired only ever gets set to non-null values after this point.
-			//so it is impossible to get in this
-			/*
-			 * Someone else has the lock, and they have the lock for LEASE_DURATION time. At this point, we need
-			 * to wait at least LEASE_DURATION milliseconds before we can try to acquire the lock.
-			 */
-
-			// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
-			if opt.failIfLocked {
-				return nil, &LockNotGrantedError{"Didn't acquire lock because it is locked and request is configured not to retry."}
-			}
-
-			lockTryingToBeAcquired = existingLock
-			if !alreadySleptOnceForOneLeasePeriod {
-				alreadySleptOnceForOneLeasePeriod = true
-				millisecondsToWait += existingLock.leaseDuration
+	} else {
+		if getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber {
+			/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
+			if getLockOptions.lockTryingToBeAcquired.IsExpired() {
+				l, err := c.upsertAndMonitorExpiredLock(
+					getLockOptions.additionalAttributes,
+					getLockOptions.partitionKeyName,
+					getLockOptions.deleteLockOnRelease,
+					existingLock, newLockData, item,
+					recordVersionNumber,
+					getLockOptions.sessionMonitor)
+				return true, l, err
 			}
 		} else {
-			if lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber {
-				/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
-				if lockTryingToBeAcquired.IsExpired() {
-					return c.upsertAndMonitorExpiredLock(opt,
-						key, deleteLockOnRelease,
-						existingLock, newLockData, item,
-						recordVersionNumber, sessionMonitor)
-				}
-			} else {
-				/*
-				 * If the version number changed since we last queried the lock, then we need to update
-				 * lockTryingToBeAcquired as the lock has been refreshed since we last checked
-				 */
-				lockTryingToBeAcquired = existingLock
-			}
+			/*
+			 * If the version number changed since we last queried the lock, then we need to update
+			 * lockTryingToBeAcquired as the lock has been refreshed since we last checked
+			 */
+			getLockOptions.lockTryingToBeAcquired = existingLock
 		}
-
-		if t := time.Since(currentTimeMillis); t > millisecondsToWait {
-			return nil, &LockNotGrantedError{"Didn't acquire lock after sleeping for " + t.String()}
-		}
-		c.logger.Println("Sleeping for a refresh period of ", refreshPeriodDuration)
-		time.Sleep(refreshPeriodDuration)
 	}
+
+	if t := time.Since(getLockOptions.start); t > getLockOptions.millisecondsToWait {
+		return true, nil, &LockNotGrantedError{"Didn't acquire lock after sleeping for " + t.String()}
+	}
+	c.logger.Println("Sleeping for a refresh period of ", getLockOptions.refreshPeriodDuration)
+	time.Sleep(getLockOptions.refreshPeriodDuration)
+	return false, nil, nil
 }
 
 var pkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
@@ -428,7 +440,7 @@ var pkExistsAndSkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
 	pkPathExpressionVariable, skPathExpressionVariable, rvnPathExpressionVariable, rvnValueExpressionVariable)
 
 func (c *Client) upsertAndMonitorExpiredLock(
-	opt *acquireLockOptions,
+	additionalAttributes map[string]*dynamodb.AttributeValue,
 	key string,
 	deleteLockOnRelease bool,
 	existingLock *Lock,
@@ -459,13 +471,13 @@ func (c *Client) upsertAndMonitorExpiredLock(
 
 	c.logger.Println("Acquiring an existing lock whose revisionVersionNumber did not change for ",
 		c.partitionKeyName, " partitionKeyName=", key)
-	return c.putLockItemAndStartSessionMonitor(opt, key,
-		deleteLockOnRelease, newLockData,
+	return c.putLockItemAndStartSessionMonitor(
+		additionalAttributes, key, deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, putItemRequest)
 }
 
 func (c *Client) upsertAndMonitorNewOrReleasedLock(
-	opt *acquireLockOptions,
+	additionalAttributes map[string]*dynamodb.AttributeValue,
 	key string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
@@ -496,13 +508,13 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	// expire sooner than it actually will, so they start counting towards
 	// its expiration before the Put succeeds
 	c.logger.Println("Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", key)
-	return c.putLockItemAndStartSessionMonitor(opt, key,
+	return c.putLockItemAndStartSessionMonitor(additionalAttributes, key,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, req)
 }
 
 func (c *Client) putLockItemAndStartSessionMonitor(
-	opt *acquireLockOptions,
+	additionalAttributes map[string]*dynamodb.AttributeValue,
 	key string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
@@ -527,7 +539,7 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 		leaseDuration:        c.leaseDuration,
 		lookupTime:           lastUpdatedTime,
 		recordVersionNumber:  recordVersionNumber,
-		additionalAttributes: opt.additionalAttributes,
+		additionalAttributes: additionalAttributes,
 		sessionMonitor:       sessionMonitor,
 	}
 

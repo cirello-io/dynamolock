@@ -44,8 +44,18 @@ type lockClientOptions struct {
 }
 
 type getLockOptions struct {
-	partitionKeyName    string
-	deleteLockOnRelease bool
+	partitionKeyName                  string
+	deleteLockOnRelease               bool
+	millisecondsToWait                time.Duration
+	refreshPeriodDuration             time.Duration
+	lockTryingToBeAcquired            *Lock
+	alreadySleptOnceForOneLeasePeriod bool
+	sessionMonitor                    *sessionMonitor
+	start                             time.Time
+	replaceData                       bool
+	data                              []byte
+	additionalAttributes              map[string]*dynamodb.AttributeValue
+	failIfLocked                      bool
 }
 
 type releaseLockOptions struct {
