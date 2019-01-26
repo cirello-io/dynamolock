@@ -565,6 +565,56 @@ func TestInvalidReleases(t *testing.T) {
 	})
 }
 
+func TestClientWithDataAfterRelease(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "lockNoData"
+
+	lockItem, err := c.AcquireLock(lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := []byte("there is life after release")
+	if _, err := c.ReleaseLock(lockItem, dynamolock.WithDataAfterRelease(data)); err != nil {
+		t.Fatal(err)
+	}
+
+	relockedItem, err := c.AcquireLock(lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(relockedItem.Data(), data) {
+		t.Fatal("missing expected data after the release")
+	}
+}
+
 type testLogger struct {
 	t *testing.T
 }

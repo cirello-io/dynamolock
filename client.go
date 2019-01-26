@@ -872,9 +872,6 @@ func (c *Client) getItemKeys(lockItem *Lock) map[string]*dynamodb.AttributeValue
 	return key
 }
 
-// GetOptions allows to configure lock reads.
-type GetOptions func(*getLockOptions)
-
 // Get finds out who owns the given lock, but does not acquire the lock. It
 // returns the metadata currently associated with the given lock. If the client
 // currently has the lock, it will return the lock, and operations such as
@@ -882,12 +879,9 @@ type GetOptions func(*getLockOptions)
 // operations like releaseLock will not work (after calling Get, the caller
 // should check lockItem.isExpired() to figure out if it currently has the
 // lock.)
-func (c *Client) Get(key string, opts ...GetOptions) (*Lock, error) {
+func (c *Client) Get(key string) (*Lock, error) {
 	getLockOption := getLockOptions{
 		partitionKeyName: key,
-	}
-	for _, opt := range opts {
-		opt(&getLockOption)
 	}
 
 	keyName := getLockOption.partitionKeyName
