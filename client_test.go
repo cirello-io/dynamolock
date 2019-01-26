@@ -526,19 +526,43 @@ func TestInvalidReleases(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	var l *dynamolock.Lock
-	if _, err := c.ReleaseLock(l); err == nil {
-		t.Fatal("nil locks should trigger error on release:", err)
-	} else {
-		t.Log("nil lock:", err)
-	}
+	t.Run("release nil lock", func(t *testing.T) {
+		var l *dynamolock.Lock
+		if _, err := c.ReleaseLock(l); err == nil {
+			t.Fatal("nil locks should trigger error on release:", err)
+		} else {
+			t.Log("nil lock:", err)
+		}
+	})
 
-	emptyLock := &dynamolock.Lock{}
-	if released, err := c.ReleaseLock(emptyLock); released || err != nil {
-		t.Fatal("empty locks should return non-released flag and nil error:", released, err)
-	} else {
-		t.Log("emptyLock:", released, err)
-	}
+	t.Run("release empty lock", func(t *testing.T) {
+		emptyLock := &dynamolock.Lock{}
+		if released, err := c.ReleaseLock(emptyLock); err != dynamolock.ErrOwnerMismatched {
+			t.Fatal("empty locks should return error:", err)
+		} else {
+			t.Log("emptyLock:", released, err)
+		}
+	})
+
+	t.Run("duplicated lock close", func(t *testing.T) {
+		l, err := c.AcquireLock("duplicatedLockRelease")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Close(); err != nil {
+			t.Fatal("first close should be flawless:", err)
+		}
+		if err := l.Close(); err == nil {
+			t.Fatal("second close should be fail")
+		}
+	})
+
+	t.Run("nil lock close", func(t *testing.T) {
+		var l *dynamolock.Lock
+		if err := l.Close(); err != dynamolock.ErrCannotReleaseNullLock {
+			t.Fatal("wrong error when closing nil lock:", err)
+		}
+	})
 }
 
 type testLogger struct {

@@ -741,9 +741,8 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 
 // ReleaseLock releases the given lock if the current user still has it,
 // returning true if the lock was successfully released, and false if someone
-// else already stole the lock. Deletes the lock item if it is released and
-// deleteLockItemOnClose is set. Return true if the lock is released, false
-// otherwise.
+// else already stole the lock or a problem happened. Deletes the lock item if
+// it is released and deleteLockItemOnClose is set.
 func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
 	releaseLockOptions := &releaseLockOptions{
 		lockItem: lockItem,
@@ -755,7 +754,8 @@ func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, e
 	for _, opt := range opts {
 		opt(releaseLockOptions)
 	}
-	return c.releaseLock(releaseLockOptions)
+	err := c.releaseLock(releaseLockOptions)
+	return err == nil, err
 }
 
 // WithDeleteLock defines whether or not to delete the lock when releasing it.
@@ -781,21 +781,22 @@ func WithDataAfterRelease(data []byte) ReleaseLockOption {
 // during the act of releasing a lock.
 type ReleaseLockOption func(*releaseLockOptions)
 
-func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
+func (c *Client) releaseLock(options *releaseLockOptions) error {
 	lockItem := options.lockItem
 	if lockItem == nil {
-		return false, errors.New("cannot release null lock item")
+		return ErrCannotReleaseNullLock
 	}
 	deleteLock := options.deleteLock
 	data := options.data
 
 	if lockItem.ownerName != c.ownerName {
-		return false, nil
+		return ErrOwnerMismatched
 	}
 
 	lockItem.semaphore.Lock()
 	defer lockItem.semaphore.Unlock()
 
+	lockItem.isReleased = true
 	c.locks.Delete(lockItem.uniqueIdentifier())
 
 	var conditionalExpression string
@@ -822,7 +823,7 @@ func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
 		}
 		_, err := c.dynamoDB.DeleteItem(deleteItemRequest)
 		if err != nil {
-			return false, err
+			return err
 		}
 	} else {
 		var updateExpression string
@@ -848,11 +849,11 @@ func (c *Client) releaseLock(options *releaseLockOptions) (bool, error) {
 
 		_, err := c.dynamoDB.UpdateItem(updateItemRequest)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 	c.removeKillSessionMonitor(lockItem.uniqueIdentifier())
-	return true, nil
+	return nil
 }
 
 func (c *Client) releaseAllLocks() error {

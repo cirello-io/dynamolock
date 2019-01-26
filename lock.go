@@ -52,10 +52,15 @@ func (l *Lock) Data() []byte {
 }
 
 // Close releases the lock.
-func (l *Lock) Close() {
+func (l *Lock) Close() error {
 	if l != nil && l.client != nil {
-		l.client.ReleaseLock(l)
+		if l.IsExpired() {
+			return ErrLockAlreadyReleased
+		}
+		_, err := l.client.ReleaseLock(l)
+		return err
 	}
+	return ErrCannotReleaseNullLock
 }
 
 func (l *Lock) uniqueIdentifier() string {
@@ -121,8 +126,10 @@ func (l *Lock) IsAlmostExpired() (bool, error) {
 
 // Errors related to session manager life-cycle.
 var (
-	ErrSessionMonitorNotSet = errors.New("session monitor is not set")
-	ErrLockAlreadyReleased  = errors.New("lock is already released")
+	ErrSessionMonitorNotSet  = errors.New("session monitor is not set")
+	ErrLockAlreadyReleased   = errors.New("lock is already released")
+	ErrCannotReleaseNullLock = errors.New("cannot release null lock item")
+	ErrOwnerMismatched       = errors.New("lock owner mismatched")
 )
 
 func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
