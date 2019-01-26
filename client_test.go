@@ -283,7 +283,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 		lockedItem, err := c.AcquireLock(
 			"good attributes",
 			dynamolock.WithAdditionalAttributes(map[string]*dynamodb.AttributeValue{
-				"hello": &dynamodb.AttributeValue{S: aws.String("world")},
+				"hello": {S: aws.String("world")},
 			}),
 		)
 		if err != nil {
@@ -299,7 +299,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 		_, err := c.AcquireLock(
 			"bad attributes",
 			dynamolock.WithAdditionalAttributes(map[string]*dynamodb.AttributeValue{
-				"ownerName": &dynamodb.AttributeValue{S: aws.String("fakeOwner")},
+				"ownerName": {S: aws.String("fakeOwner")},
 			}),
 		)
 		if err == nil {
