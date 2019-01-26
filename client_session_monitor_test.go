@@ -170,4 +170,9 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	if !sessionMonitorWasTriggered {
 		t.Fatal("session monitor was not triggered")
 	}
+
+	time.Sleep(2 * time.Second)
+	if ok, err := lockedItem.IsAlmostExpired(); err != dynamolock.ErrLockAlreadyReleased {
+		t.Error("lockedItem should be already expired:", ok, err)
+	}
 }
