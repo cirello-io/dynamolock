@@ -37,18 +37,15 @@ func TestLockNotGrantedError(t *testing.T) {
 	}
 }
 
-type fakeAWSErr struct {
-}
-
 func TestParseDynamoDBError(t *testing.T) {
 	t.Parallel()
 
 	vanilla := errors.New("root error")
 	if err := parseDynamoDBError(vanilla, ""); err != vanilla {
-		t.Log("wrong error wrapping:", err)
+		t.Error("wrong error wrapping (vanilla):", err)
 	}
 	awserr := awserr.New(dynamodb.ErrCodeConditionalCheckFailedException, "conditional check failed", vanilla)
-	if err := parseDynamoDBError(awserr, ""); err != awserr {
-		t.Log("wrong error wrapping:", err)
+	if err, ok := parseDynamoDBError(awserr, "").(*LockNotGrantedError); err == nil || !ok {
+		t.Error("wrong error wrapping (awserr):", err)
 	}
 }
