@@ -1,12 +1,12 @@
 # DynamoDB Lock Client for Go
 
 [![GoDoc](https://godoc.org/cirello.io/dynamolock?status.svg)](https://godoc.org/cirello.io/dynamolock)
-[![Build Status](https://travis-ci.org/ucirello/dynamolock.svg?branch=master)](https://travis-ci.org/ucirello/dynamolock)
-[![Coverage Status](https://coveralls.io/repos/github/ucirello/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/ucirello/dynamolock?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ucirello/dynamolock)](https://goreportcard.com/report/github.com/ucirello/dynamolock)
-[![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/ucirello/public/blob/master/SLA.md)
+[![Build Status](https://travis-ci.org/cirello-io/dynamolock.svg?branch=master)](https://travis-ci.org/cirello-io/dynamolock)
+[![Coverage Status](https://coveralls.io/repos/github/cirello-io/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/ucirello/dynamolock?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cirello-io/dynamolock)](https://goreportcard.com/report/github.com/cirello-io/dynamolock)
+[![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
 
-This repository is covered by this [SLA](https://github.com/ucirello/public/blob/master/SLA.md).
+This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
 
 The dymanoDB Lock Client for Go is a general purpose distributed locking library
 built for DynamoDB. The dynamoDB Lock Client for Go supports both fine-grained
