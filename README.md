@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/cirello.io/dynamolock?status.svg)](https://godoc.org/cirello.io/dynamolock)
 [![Build Status](https://travis-ci.org/cirello-io/dynamolock.svg?branch=master)](https://travis-ci.org/cirello-io/dynamolock)
-[![Coverage Status](https://coveralls.io/repos/github/cirello-io/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/ucirello/dynamolock?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/cirello-io/dynamolock/badge.svg?branch=master)](https://coveralls.io/github/cirello-io/dynamolock?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cirello-io/dynamolock)](https://goreportcard.com/report/github.com/cirello-io/dynamolock)
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
 
