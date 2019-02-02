@@ -352,8 +352,16 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 		newLockData = getLockOptions.data
 	}
 
-	item := make(map[string]*dynamodb.AttributeValue)
+	mergedAdditionalAttributes := make(map[string]*dynamodb.AttributeValue)
+	for k, v := range existingLock.AdditionalAttributes() {
+		mergedAdditionalAttributes[k] = v
+	}
+	for k, v := range getLockOptions.additionalAttributes {
+		mergedAdditionalAttributes[k] = v
+	}
+	getLockOptions.additionalAttributes = mergedAdditionalAttributes
 
+	item := make(map[string]*dynamodb.AttributeValue)
 	for k, v := range getLockOptions.additionalAttributes {
 		item[k] = v
 	}

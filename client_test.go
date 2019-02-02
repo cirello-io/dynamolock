@@ -262,7 +262,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
@@ -304,6 +304,33 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 		)
 		if err == nil {
 			t.Fatal("expected error not found")
+		}
+	})
+	t.Run("recover attributes after release", func(t *testing.T) {
+		// Cover cirello-io/dynamolock#6
+		lockedItem, err := c.AcquireLock(
+			"recover attributes after release",
+			dynamolock.WithAdditionalAttributes(map[string]*dynamodb.AttributeValue{
+				"hello": {S: aws.String("world")},
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attrs := lockedItem.AdditionalAttributes()
+		if v, ok := attrs["hello"]; !ok || v == nil || aws.StringValue(v.S) != "world" {
+			t.Error("corrupted attribute set")
+		}
+
+		relockedItem, err := c.AcquireLock(
+			"recover attributes after release",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recoveredAttrs := relockedItem.AdditionalAttributes()
+		if v, ok := recoveredAttrs["hello"]; !ok || v == nil || aws.StringValue(v.S) != "world" {
+			t.Error("corrupted attribute set")
 		}
 	})
 }

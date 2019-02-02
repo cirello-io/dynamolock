@@ -97,8 +97,10 @@ func (l *Lock) OwnerName() string {
 // acquisition.
 func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
 	addAttr := make(map[string]*dynamodb.AttributeValue)
-	for k, v := range l.additionalAttributes {
-		addAttr[k] = v
+	if l != nil {
+		for k, v := range l.additionalAttributes {
+			addAttr[k] = v
+		}
 	}
 	return addAttr
 }
