@@ -684,10 +684,6 @@ func (c *Client) heartbeat() {
 // by this locking library. The table should be set up in advance, because it
 // takes a few minutes for DynamoDB to provision a new instance. Also, if the
 // table already exists, it will return an error.
-//
-// This method lets you specify a sort key to be used by the lock client. This
-// sort key then needs to be specified in the AmazonDynamoDBLockClientOptions
-// when the lock client object is created.
 func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	createTableOptions := &createDynamoDBTableOptions{
 		tableName:        tableName,
