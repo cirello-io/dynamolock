@@ -46,7 +46,6 @@ const (
 	pkPathExpressionVariable                 = "#pk"
 	rvnPathExpressionVariable                = "#rvn"
 	rvnValueExpressionVariable               = ":rvn"
-	skPathExpressionVariable                 = "#sk"
 
 	attrData                = "data"
 	attrOwnerName           = "ownerName"
@@ -58,10 +57,6 @@ const (
 )
 
 var (
-	pkExistsAndSkExistsAndOwnerNameSameAndRvnSameCondition = fmt.Sprintf(
-		"%s AND %s = %s",
-		pkExistsAndSkExistsAndRvnIsTheSameCondition, ownerNamePathExpressionVariable, ownerNameValueExpressionVariable)
-
 	pkExistsAndOwnerNameSameAndRvnSameCondition = fmt.Sprintf("%s AND %s = %s",
 		pkExistsAndRvnIsTheSameCondition, ownerNamePathExpressionVariable, ownerNameValueExpressionVariable)
 
@@ -443,9 +438,6 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 var pkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
 	"attribute_exists(%s) AND %s = %s",
 	pkPathExpressionVariable, rvnPathExpressionVariable, rvnValueExpressionVariable)
-var pkExistsAndSkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
-	"attribute_exists(%s) AND attribute_exists(%s) AND %s = %s",
-	pkPathExpressionVariable, skPathExpressionVariable, rvnPathExpressionVariable, rvnValueExpressionVariable)
 
 func (c *Client) upsertAndMonitorExpiredLock(
 	additionalAttributes map[string]*dynamodb.AttributeValue,

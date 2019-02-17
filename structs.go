@@ -34,15 +34,6 @@ type acquireLockOptions struct {
 	sessionMonitor              *sessionMonitor
 }
 
-type lockClientOptions struct {
-	dynamoDBClient   *dynamodb.DynamoDB
-	tableName        string
-	partitionKeyName string
-	ownerName        string
-	leaseDuration    time.Duration
-	heartbeatPeriod  time.Duration
-}
-
 type getLockOptions struct {
 	partitionKeyName                  string
 	deleteLockOnRelease               bool
