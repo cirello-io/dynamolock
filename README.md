@@ -61,9 +61,9 @@ import (
 )
 
 func main() {
-	svc := dynamodb.New(session.New(), &aws.Config{
-		Region:   aws.String("us-west-2"),
-	})
+    svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
+        Region: aws.String("us-west-2"),
+    })))
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -93,7 +93,7 @@ func main() {
 
 	log.Println("lock content:", string(lockedItem.Data()))
 	if got := string(lockedItem.Data()); string(data) != got {
-		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+		log.Println("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
 
 	log.Println("cleaning lock")
