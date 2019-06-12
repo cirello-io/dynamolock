@@ -660,7 +660,7 @@ func (c *Client) heartbeat(ctx context.Context) {
 			return true
 		})
 		if ctx.Err() != nil {
-			c.logger.Println("no locks in the client, stopping heartbeat")
+			c.logger.Println("client closed, stopping heartbeat")
 			return
 		}
 	}
