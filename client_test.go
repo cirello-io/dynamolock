@@ -706,3 +706,66 @@ func TestHeartbeatLoss(t *testing.T) {
 		t.Fatal("is the heartbeat running?")
 	}
 }
+
+func TestHeartbeatError(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+
+	var buf bytes.Buffer
+	defer func() {
+		t.Log(buf.String())
+	}()
+	logger := log.New(&buf, "", 0)
+
+	heartbeatPeriod := 2 * time.Second
+	c, err := dynamolock.New(svc,
+		"locksHBError",
+		dynamolock.WithLeaseDuration(1*time.Hour),
+		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
+		dynamolock.WithOwnerName("TestHeartbeatError#1"),
+		dynamolock.WithLogger(logger),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	_, err = c.CreateTable("locksHBError",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal("cannot create table")
+	}
+
+	const lockName = "heartbeatError"
+	if _, err := c.AcquireLock(lockName); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * heartbeatPeriod)
+
+	_, err = svc.DeleteTable(&dynamodb.DeleteTableInput{
+		TableName: aws.String("locksHBError"),
+	})
+	if err != nil {
+		t.Fatalf("could not delete table: %v", err)
+	}
+
+	time.Sleep(heartbeatPeriod)
+
+	c.Close()
+
+	time.Sleep(heartbeatPeriod)
+
+	if !strings.Contains(buf.String(), "error sending heartbeat to heartbeatError") {
+		t.Fatal("cannot prove that heartbeat failed after the table has been deleted")
+	}
+}
