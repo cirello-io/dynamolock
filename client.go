@@ -103,8 +103,10 @@ type Client struct {
 
 	logger Logger
 
-	mu            sync.Mutex
-	lastHeartbeat time.Time
+	stopHeartbeat context.CancelFunc
+
+	mu               sync.Mutex
+	heartbeatRunning bool
 }
 
 const (
@@ -123,6 +125,7 @@ func New(dynamoDB dynamodbiface.DynamoDBAPI, tableName string, opts ...ClientOpt
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),
 		logger:           log.New(ioutil.Discard, "", 0),
+		stopHeartbeat:    func() {},
 	}
 
 	for _, opt := range opts {
@@ -135,6 +138,11 @@ func New(dynamoDB dynamodbiface.DynamoDBAPI, tableName string, opts ...ClientOpt
 			"4+ times greater)")
 	}
 
+	if c.heartbeatPeriod > 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		c.stopHeartbeat = cancel
+		go c.heartbeat(ctx)
+	}
 	return c, nil
 }
 
@@ -544,7 +552,6 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 	}
 
 	c.locks.Store(lockItem.uniqueIdentifier(), lockItem)
-	c.enforceHeartbeat()
 	c.tryAddSessionMonitor(lockItem.uniqueIdentifier(), lockItem)
 	return lockItem, nil
 }
@@ -640,45 +647,22 @@ func randString(n int) string {
 	return string(b)
 }
 
-func (c *Client) enforceHeartbeat() {
-	if c.heartbeatPeriod == 0 {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	isHeartbeatDead := time.Since(c.lastHeartbeat) > 2*c.heartbeatPeriod
-	if isHeartbeatDead {
-		go c.heartbeat()
-	}
-}
-
-func (c *Client) heartbeat() {
+func (c *Client) heartbeat(ctx context.Context) {
 	c.logger.Println("starting heartbeats")
 	tick := time.NewTicker(c.heartbeatPeriod)
 	defer tick.Stop()
 	for range tick.C {
-		touchedAnyLock := false
 		c.locks.Range(func(_ interface{}, value interface{}) bool {
-			touchedAnyLock = true
-
 			lockItem := value.(*Lock)
 			if err := c.SendHeartbeat(lockItem); err != nil {
 				c.logger.Println("error sending heartbeat to", lockItem.partitionKey, ":", err)
 			}
-
 			return true
 		})
-		if !touchedAnyLock {
-			c.mu.Lock()
-			c.lastHeartbeat = time.Time{}
-			c.mu.Unlock()
+		if ctx.Err() != nil {
 			c.logger.Println("no locks in the client, stopping heartbeat")
 			return
 		}
-		c.mu.Lock()
-		c.lastHeartbeat = time.Now()
-		c.mu.Unlock()
 	}
 }
 
@@ -919,7 +903,11 @@ func (c *Client) Get(key string) (*Lock, error) {
 
 // Close releases all of the locks.
 func (c *Client) Close() error {
-	return c.releaseAllLocks()
+	if err := c.releaseAllLocks(); err != nil {
+		return err
+	}
+	c.stopHeartbeat()
+	return nil
 }
 
 func (c *Client) tryAddSessionMonitor(lockName string, lock *Lock) {
