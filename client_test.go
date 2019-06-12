@@ -649,3 +649,60 @@ type testLogger struct {
 func (t *testLogger) Println(v ...interface{}) {
 	t.t.Log(v...)
 }
+
+func TestHeartbeatLoss(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(session.New(), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	heartbeatPeriod := 5 * time.Second
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(1*time.Hour),
+		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
+		dynamolock.WithOwnerName("TestHeartbeatLoss#1"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "heartbeatLoss"
+
+	lockItem1, err := c.AcquireLock(lockName + "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(heartbeatPeriod)
+	if _, err := c.ReleaseLock(lockItem1); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(heartbeatPeriod)
+
+	lockItem2, err := c.AcquireLock(lockName + "2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lockItem2.Close()
+
+	rvn1 := lockItem2.RVN()
+	time.Sleep(heartbeatPeriod + 1*time.Second)
+	rvn2 := lockItem2.RVN()
+
+	t.Log("RVNs", rvn1, rvn2)
+	if rvn1 == rvn2 {
+		t.Fatal("is the heartbeat running?")
+	}
+}

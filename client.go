@@ -647,8 +647,7 @@ func (c *Client) enforceHeartbeat() {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	lastHeartbeat := c.lastHeartbeat
-	isHeartbeatDead := time.Since(lastHeartbeat) > 2*c.heartbeatPeriod
+	isHeartbeatDead := time.Since(c.lastHeartbeat) > 2*c.heartbeatPeriod
 	if isHeartbeatDead {
 		go c.heartbeat()
 	}
@@ -664,13 +663,16 @@ func (c *Client) heartbeat() {
 			touchedAnyLock = true
 
 			lockItem := value.(*Lock)
-			if err := c.SendHeartbeat(value.(*Lock)); err != nil {
+			if err := c.SendHeartbeat(lockItem); err != nil {
 				c.logger.Println("error sending heartbeat to", lockItem.partitionKey, ":", err)
 			}
 
 			return true
 		})
 		if !touchedAnyLock {
+			c.mu.Lock()
+			c.lastHeartbeat = time.Time{}
+			c.mu.Unlock()
 			c.logger.Println("no locks in the client, stopping heartbeat")
 			return
 		}
