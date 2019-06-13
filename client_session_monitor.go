@@ -24,5 +24,5 @@ type sessionMonitor struct {
 }
 
 func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time) time.Duration {
-	return lastAbsoluteTime.Add(s.safeTime).Sub(time.Now())
+	return time.Until(lastAbsoluteTime.Add(s.safeTime))
 }
