@@ -24,14 +24,13 @@ import (
 
 	"cirello.io/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
 func TestHeartbeatHandover(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -125,7 +124,7 @@ func TestHeartbeatHandover(t *testing.T) {
 func TestHeartbeatDataOps(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})

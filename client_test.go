@@ -36,10 +36,19 @@ func isDynamoLockAvailable(t *testing.T) {
 		t.Skipf("cannot dial to dynamoDB: %v", err)
 	}
 }
+
+func mustAWSNewSession(t *testing.T) *session.Session {
+	session, err := session.NewSession()
+	if err != nil {
+		t.Fatal("err")
+	}
+	return session
+}
+
 func TestClientBasicFlow(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -138,7 +147,7 @@ func TestClientBasicFlow(t *testing.T) {
 func TestReadLockContent(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -200,7 +209,7 @@ func TestReadLockContent(t *testing.T) {
 func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -217,7 +226,7 @@ func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 func TestFailIfLocked(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -255,7 +264,7 @@ func TestFailIfLocked(t *testing.T) {
 func TestClientWithAdditionalAttributes(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -338,7 +347,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 func TestDeleteLockOnRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -392,7 +401,7 @@ func TestDeleteLockOnRelease(t *testing.T) {
 func TestCustomRefreshPeriod(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -434,7 +443,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -483,7 +492,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 func TestClientClose(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -528,7 +537,7 @@ func TestClientClose(t *testing.T) {
 func TestInvalidReleases(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -595,7 +604,7 @@ func TestInvalidReleases(t *testing.T) {
 func TestClientWithDataAfterRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -653,7 +662,7 @@ func (t *testLogger) Println(v ...interface{}) {
 func TestHeartbeatLoss(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -710,7 +719,7 @@ func TestHeartbeatLoss(t *testing.T) {
 func TestHeartbeatError(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})

@@ -22,14 +22,13 @@ import (
 
 	"cirello.io/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
 func TestSessionMonitor(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -78,7 +77,7 @@ func TestSessionMonitor(t *testing.T) {
 func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
@@ -126,7 +125,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 func TestSessionMonitorFullCycle(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(session.New(), &aws.Config{
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
 		Endpoint: aws.String("http://localhost:8000/"),
 		Region:   aws.String("us-west-2"),
 	})
