@@ -121,7 +121,7 @@ func TestClientBasicFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	data3 := []byte("some content c")
-	lockedItem3, err := c2.AcquireLock("spock",
+	_, err = c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
 		dynamolock.ReplaceData(),
 	)
@@ -131,7 +131,7 @@ func TestClientBasicFlow(t *testing.T) {
 
 	c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
 
-	lockedItem3, err = c2.AcquireLock("spock",
+	lockedItem3, err := c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
 		dynamolock.ReplaceData(),
 	)
