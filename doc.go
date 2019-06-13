@@ -45,6 +45,7 @@ limitations under the License.
 //	if err != nil {
 //		log.Fatal(err)
 //	}
+//	defer c.Close()
 //
 //	log.Println("ensuring table exists")
 //	c.CreateTable("locks",

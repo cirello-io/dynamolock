@@ -61,9 +61,9 @@ import (
 )
 
 func main() {
-    svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
-        Region: aws.String("us-west-2"),
-    })))
+	svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
+		Region: aws.String("us-west-2"),
+	})))
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -72,6 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer c.Close()
 
 	log.Println("ensuring table exists")
 	c.CreateTable("locks",
