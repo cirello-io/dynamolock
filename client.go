@@ -104,9 +104,6 @@ type Client struct {
 	logger Logger
 
 	stopHeartbeat context.CancelFunc
-
-	mu               sync.Mutex
-	heartbeatRunning bool
 }
 
 const (
