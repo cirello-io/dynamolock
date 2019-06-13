@@ -130,7 +130,7 @@ func New(dynamoDB dynamodbiface.DynamoDBAPI, tableName string, opts ...ClientOpt
 	}
 
 	if c.leaseDuration < 2*c.heartbeatPeriod {
-		return nil, errors.New("Heartbeat period must be no more than half the length of the Lease Duration, " +
+		return nil, errors.New("heartbeat period must be no more than half the length of the Lease Duration, " +
 			"or locks might expire due to the heartbeat thread taking too long to update them (recommendation is to make it much greater, for example " +
 			"4+ times greater)")
 	}
@@ -299,7 +299,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 
 	if contains(c.partitionKeyName, attrOwnerName, attrLeaseDuration,
 		attrRecordVersionNumber, attrData) {
-		return nil, fmt.Errorf("Additional attribute cannot be one of the following types: %s, %s, %s, %s, %s",
+		return nil, fmt.Errorf("additional attribute cannot be one of the following types: %s, %s, %s, %s, %s",
 			c.partitionKeyName, attrOwnerName, attrLeaseDuration, attrRecordVersionNumber, attrData)
 	}
 
