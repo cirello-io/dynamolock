@@ -104,6 +104,10 @@ type Client struct {
 	logger Logger
 
 	stopHeartbeat context.CancelFunc
+
+	mu        sync.Mutex
+	closeOnce sync.Once
+	closed    bool
 }
 
 const (
@@ -277,6 +281,9 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 
 // AcquireLock holds the defined lock.
 func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
+	if c.isClosed() {
+		return nil, ErrClientClosed
+	}
 	req := &acquireLockOptions{
 		partitionKey: key,
 	}
@@ -668,6 +675,9 @@ func (c *Client) heartbeat(ctx context.Context) {
 // takes a few minutes for DynamoDB to provision a new instance. Also, if the
 // table already exists, it will return an error.
 func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+	if c.isClosed() {
+		return nil, ErrClientClosed
+	}
 	createTableOptions := &createDynamoDBTableOptions{
 		tableName:        tableName,
 		billingMode:      "PAY_PER_REQUEST",
@@ -738,6 +748,9 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 // else already stole the lock or a problem happened. Deletes the lock item if
 // it is released and deleteLockItemOnClose is set.
 func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
+	if c.isClosed() {
+		return false, ErrClientClosed
+	}
 	releaseLockOptions := &releaseLockOptions{
 		lockItem: lockItem,
 	}
@@ -874,6 +887,9 @@ func (c *Client) getItemKeys(lockItem *Lock) map[string]*dynamodb.AttributeValue
 // should check lockItem.isExpired() to figure out if it currently has the
 // lock.)
 func (c *Client) Get(key string) (*Lock, error) {
+	if c.isClosed() {
+		return nil, ErrClientClosed
+	}
 	getLockOption := getLockOptions{
 		partitionKeyName: key,
 	}
@@ -898,13 +914,31 @@ func (c *Client) Get(key string) (*Lock, error) {
 	return lockItem, nil
 }
 
+// ErrClientClosed reports the client cannot be used because it is already
+// closed.
+var ErrClientClosed = errors.New("client already closed")
+
+func (c *Client) isClosed() bool {
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	return closed
+}
+
 // Close releases all of the locks.
 func (c *Client) Close() error {
-	if err := c.releaseAllLocks(); err != nil {
-		return err
+	if c.isClosed() {
+		return ErrClientClosed
 	}
-	c.stopHeartbeat()
-	return nil
+	err := ErrClientClosed
+	c.closeOnce.Do(func() {
+		err = c.releaseAllLocks()
+		c.stopHeartbeat()
+		c.mu.Lock()
+		c.closed = true
+		c.mu.Unlock()
+	})
+	return err
 }
 
 func (c *Client) tryAddSessionMonitor(lockName string, lock *Lock) {

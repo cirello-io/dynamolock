@@ -54,6 +54,9 @@ func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 // and sending heartbeats. However, if WithHeartbeatPeriod = 0, then this method
 // must be called to instruct DynamoDB that the lock should not be expired.
 func (c *Client) SendHeartbeat(lockItem *Lock, opts ...SendHeartbeatOption) error {
+	if c.isClosed() {
+		return ErrClientClosed
+	}
 	sho := &sendHeartbeatOptions{
 		lockItem: lockItem,
 	}
