@@ -505,7 +505,7 @@ func TestClientClose(t *testing.T) {
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("cannot create the client:", err)
 	}
 
 	t.Log("ensuring table exists")
@@ -517,20 +517,48 @@ func TestClientClose(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	if _, err := c.AcquireLock("bulkClose1"); err != nil {
-		t.Fatal(err)
+	t.Log("acquiring locks")
+	lockItem1, err := c.AcquireLock("bulkClose1")
+	if err != nil {
+		t.Fatal("cannot acquire lock1:", err)
 	}
 
 	if _, err := c.AcquireLock("bulkClose2"); err != nil {
-		t.Fatal(err)
+		t.Fatal("cannot acquire lock2:", err)
 	}
 
 	if _, err := c.AcquireLock("bulkClose3"); err != nil {
-		t.Fatal(err)
+		t.Fatal("cannot acquire lock3:", err)
 	}
 
+	t.Log("closing client")
 	if err := c.Close(); err != nil {
 		t.Fatal("cannot close lock client: ", err)
+	}
+
+	t.Log("close after close")
+	if err := c.Close(); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (close after close):", err)
+	}
+	t.Log("heartbeat after close")
+	if err := c.SendHeartbeat(lockItem1); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (heartbeat after close):", err)
+	}
+	t.Log("release after close")
+	if _, err := c.ReleaseLock(lockItem1); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (release after close):", err)
+	}
+	t.Log("get after close")
+	if _, err := c.Get("bulkClose1"); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (get after close):", err)
+	}
+	t.Log("acquire after close")
+	if _, err := c.AcquireLock("acquireAfterClose"); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (acquire after close):", err)
+	}
+	t.Log("create table after close")
+	if _, err := c.CreateTable("createTableAfterClose"); err != dynamolock.ErrClientClosed {
+		t.Error("expected error missing (create table after close):", err)
 	}
 }
 
