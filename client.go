@@ -683,11 +683,9 @@ func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dyna
 		billingMode:      "PAY_PER_REQUEST",
 		partitionKeyName: defaultPartitionKeyName,
 	}
-
 	for _, opt := range opts {
 		opt(createTableOptions)
 	}
-
 	return c.createTable(createTableOptions)
 }
 
@@ -757,7 +755,6 @@ func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, e
 	if lockItem != nil {
 		releaseLockOptions.deleteLock = lockItem.deleteLockOnRelease
 	}
-
 	for _, opt := range opts {
 		opt(releaseLockOptions)
 	}
@@ -890,6 +887,7 @@ func (c *Client) Get(key string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
+
 	getLockOption := getLockOptions{
 		partitionKeyName: key,
 	}
