@@ -420,7 +420,7 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 	} else {
 		if getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber {
 			/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
-			if getLockOptions.lockTryingToBeAcquired.IsExpired() {
+			if getLockOptions.lockTryingToBeAcquired.isExpired() {
 				l, err := c.upsertAndMonitorExpiredLock(
 					getLockOptions.additionalAttributes,
 					getLockOptions.partitionKeyName,

@@ -72,6 +72,15 @@ func (l *Lock) IsExpired() bool {
 	if l == nil {
 		return true
 	}
+	l.semaphore.Lock()
+	defer l.semaphore.Unlock()
+	return l.isExpired()
+}
+
+func (l *Lock) isExpired() bool {
+	if l == nil {
+		return true
+	}
 
 	if l.isReleased {
 		return true
