@@ -73,7 +73,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 	lockItem.semaphore.Lock()
 	defer lockItem.semaphore.Unlock()
 
-	if lockItem.IsExpired() || lockItem.ownerName != c.ownerName || lockItem.isReleased {
+	if lockItem.isExpired() || lockItem.ownerName != c.ownerName || lockItem.isReleased {
 		c.locks.Delete(lockItem.uniqueIdentifier())
 		return &LockNotGrantedError{"cannot send heartbeat because lock is not granted"}
 	}
