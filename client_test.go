@@ -22,6 +22,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -753,7 +754,7 @@ func TestHeartbeatError(t *testing.T) {
 		Region:   aws.String("us-west-2"),
 	})
 
-	var buf bytes.Buffer
+	var buf lockStepBuffer
 	fatal := func(a ...interface{}) {
 		t.Log(buf.String())
 		t.Fatal(a...)
@@ -810,4 +811,21 @@ func TestHeartbeatError(t *testing.T) {
 	if !strings.Contains(buf.String(), "error sending heartbeat to heartbeatError") {
 		fatal("cannot prove that heartbeat failed after the table has been deleted")
 	}
+}
+
+type lockStepBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *lockStepBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *lockStepBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
 }
