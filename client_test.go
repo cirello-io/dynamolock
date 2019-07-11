@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -753,6 +754,10 @@ func TestHeartbeatError(t *testing.T) {
 	})
 
 	var buf bytes.Buffer
+	fatal := func(a ...interface{}) {
+		t.Log(buf.String())
+		t.Fatal(a...)
+	}
 	defer func() {
 		t.Log(buf.String())
 	}()
@@ -768,7 +773,7 @@ func TestHeartbeatError(t *testing.T) {
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
-		t.Fatal(err)
+		fatal(err)
 	}
 
 	t.Log("ensuring table exists")
@@ -780,12 +785,12 @@ func TestHeartbeatError(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
-		t.Fatal("cannot create table")
+		fatal("cannot create table")
 	}
 
 	const lockName = "heartbeatError"
 	if _, err := c.AcquireLock(lockName); err != nil {
-		t.Fatal(err)
+		fatal(err)
 	}
 	time.Sleep(2 * heartbeatPeriod)
 
@@ -793,7 +798,7 @@ func TestHeartbeatError(t *testing.T) {
 		TableName: aws.String("locksHBError"),
 	})
 	if err != nil {
-		t.Fatalf("could not delete table: %v", err)
+		fatal(fmt.Sprintf("could not delete table: %v", err))
 	}
 
 	time.Sleep(heartbeatPeriod)
@@ -803,6 +808,6 @@ func TestHeartbeatError(t *testing.T) {
 	time.Sleep(heartbeatPeriod)
 
 	if !strings.Contains(buf.String(), "error sending heartbeat to heartbeatError") {
-		t.Fatal("cannot prove that heartbeat failed after the table has been deleted")
+		fatal("cannot prove that heartbeat failed after the table has been deleted")
 	}
 }

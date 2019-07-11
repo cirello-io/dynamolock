@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -52,13 +53,18 @@ func TestSessionMonitor(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	var sessionMonitorWasTriggered bool
+	var (
+		mu                         sync.Mutex
+		sessionMonitorWasTriggered bool
+	)
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("uhura",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithSessionMonitor(500*time.Millisecond, func() {
+			mu.Lock()
 			sessionMonitorWasTriggered = true
+			mu.Unlock()
 		}),
 	)
 	if err != nil {
@@ -67,7 +73,10 @@ func TestSessionMonitor(t *testing.T) {
 
 	time.Sleep(4 * time.Second)
 
-	if !sessionMonitorWasTriggered {
+	mu.Lock()
+	smwt := sessionMonitorWasTriggered
+	mu.Unlock()
+	if !smwt {
 		t.Fatal("session monitor was not triggered")
 	}
 
@@ -149,10 +158,15 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	var sessionMonitorWasTriggered bool
+	var (
+		mu                         sync.Mutex
+		sessionMonitorWasTriggered bool
+	)
 	lockedItem, err := c.AcquireLock("sessionMonitor",
 		dynamolock.WithSessionMonitor(1*time.Second, func() {
+			mu.Lock()
 			sessionMonitorWasTriggered = true
+			mu.Unlock()
 		}),
 	)
 	if err != nil {
@@ -166,7 +180,10 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		t.Fatal("cannot assert whether the lock is almost expired:", err)
 	}
 
-	if !sessionMonitorWasTriggered {
+	mu.Lock()
+	smwt := sessionMonitorWasTriggered
+	mu.Unlock()
+	if !smwt {
 		t.Fatal("session monitor was not triggered")
 	}
 
