@@ -538,8 +538,7 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 
 	_, err := c.dynamoDB.PutItem(putItemRequest)
 	if err != nil {
-		err := parseDynamoDBError(err, "lock already acquired by other client")
-		return nil, fmt.Errorf("cannot store lock item: %s", err)
+		return nil, parseDynamoDBError(err, "cannot store lock item: lock already acquired by other client")
 	}
 
 	lockItem := &Lock{
