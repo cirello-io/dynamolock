@@ -49,10 +49,10 @@ limitations under the License.
 //
 //	log.Println("ensuring table exists")
 //	c.CreateTable("locks",
-//		&dynamodb.ProvisionedThroughput{
+//		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 //			ReadCapacityUnits:  aws.Int64(5),
 //			WriteCapacityUnits: aws.Int64(5),
-//		},
+//		}),
 //		dynamolock.WithCustomPartitionKeyName("key"),
 //	)
 //
