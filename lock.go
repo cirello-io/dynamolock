@@ -77,6 +77,14 @@ func (l *Lock) IsExpired() bool {
 	return l.isExpired()
 }
 
+// Expiration returns a channel into which the time will be sent upon expiration.
+func (l *Lock) Expiration() <-chan time.Time {
+	if l == nil {
+		return time.After(0)
+	}
+	return time.After(l.leaseDuration - time.Since(l.lookupTime))
+}
+
 func (l *Lock) isExpired() bool {
 	if l == nil {
 		return true

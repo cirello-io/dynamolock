@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"testing"
+	"time"
 
 	"cirello.io/dynamolock"
 )
@@ -30,6 +31,9 @@ func TestNilLock(t *testing.T) {
 	}
 	if !l.IsExpired() {
 		t.Fatal("nil locks should report as expired")
+	}
+	if !immediateExpiration(l) {
+		t.Fatal("nil locks should report expiration immediately")
 	}
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
@@ -44,16 +48,28 @@ func TestEmptyLock(t *testing.T) {
 	t.Parallel()
 	l := &dynamolock.Lock{}
 	if l.Data() != nil {
-		t.Fatal("nil locks should return nil data")
+		t.Fatal("empty locks should return nil data")
 	}
 	if !l.IsExpired() {
-		t.Fatal("nil locks should report as expired")
+		t.Fatal("empty locks should report as expired")
+	}
+	if !immediateExpiration(l) {
+		t.Fatal("empty locks should report expiration immediately")
 	}
 	if l.OwnerName() != "" {
-		t.Fatal("nil locks should report no owner")
+		t.Fatal("empty locks should report no owner")
 	}
 	if _, err := l.IsAlmostExpired(); err != dynamolock.ErrSessionMonitorNotSet {
-		t.Fatalf("nil locks should report error on testing for closing expiration: %v", err)
+		t.Fatalf("empty locks should report error on testing for closing expiration: %v", err)
 	}
 	l.Close()
+}
+
+func immediateExpiration(l *dynamolock.Lock) bool {
+	select {
+	case <-l.Expiration():
+		return true
+	case <-time.After(1 * time.Second):
+		return false
+	}
 }
