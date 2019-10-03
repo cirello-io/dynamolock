@@ -110,13 +110,18 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	var sessionMonitorWasTriggered bool
+	var (
+		mu                         sync.Mutex
+		sessionMonitorWasTriggered bool
+	)
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("scotty",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithSessionMonitor(50*time.Millisecond, func() {
+			mu.Lock()
 			sessionMonitorWasTriggered = true
+			mu.Unlock()
 		}),
 	)
 	if err != nil {
@@ -124,7 +129,10 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	}
 	go lockedItem.Close()
 
-	if sessionMonitorWasTriggered {
+	mu.Lock()
+	triggered := sessionMonitorWasTriggered
+	mu.Unlock()
+	if triggered {
 		t.Fatal("session monitor must not be triggered")
 	}
 
