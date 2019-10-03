@@ -163,6 +163,7 @@ func TestReadLockContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Close()
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
@@ -201,6 +202,7 @@ func TestReadLockContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c2.Close()
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); string(data) != got {
