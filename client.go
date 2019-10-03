@@ -903,7 +903,7 @@ func (c *Client) Get(key string) (*Lock, error) {
 		return nil, err
 	}
 
-	if lockItem == nil || lockItem.isReleased {
+	if lockItem == nil {
 		return &Lock{}, nil
 	}
 

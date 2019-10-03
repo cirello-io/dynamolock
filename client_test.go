@@ -210,6 +210,137 @@ func TestReadLockContent(t *testing.T) {
 	}
 }
 
+func TestReadLockContentAfterRelease(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#1"),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	data := []byte("some content for scotty")
+	lockedItem, err := c.AcquireLock("scotty",
+		dynamolock.WithData(data),
+		dynamolock.ReplaceData(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("lock content:", string(lockedItem.Data()))
+	if got := string(lockedItem.Data()); string(data) != got {
+		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+	}
+	lockedItem.Close()
+
+	c2, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#2"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lockItemRead, err := c2.Get("scotty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+
+	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
+	if got := string(lockItemRead.Data()); string(data) != got {
+		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+	}
+}
+
+func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#1"),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	data := []byte("some content for uhura")
+	lockedItem, err := c.AcquireLock("uhura",
+		dynamolock.WithData(data),
+		dynamolock.ReplaceData(),
+		dynamolock.WithDeleteLockOnRelease(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("lock content:", string(lockedItem.Data()))
+	if got := string(lockedItem.Data()); string(data) != got {
+		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+	}
+	lockedItem.Close()
+
+	c2, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#2"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lockItemRead, err := c2.Get("uhura")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+
+	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
+	if got := string(lockItemRead.Data()); got != "" {
+		t.Error("keeping information inside lock storage, wanted empty got:", got)
+	}
+}
+
 func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
