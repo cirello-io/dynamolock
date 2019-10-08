@@ -279,6 +279,17 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 	}
 }
 
+// WithNoWaitOnSameOwner will not wait for lease expiration when the owner of
+// the existing lock if any matches the owner of the lock to be acquired, this
+// way you can define an owner name for the client that in adition to
+// identification can be used to automatically get a stalled lock for the same
+// client.
+func WithNoWaitOnSameOwner() AcquireLockOption {
+	return func(opt *acquireLockOptions) {
+		opt.noWaitOnSameOwner = true
+	}
+}
+
 // AcquireLock holds the defined lock.
 func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
 	if c.isClosed() {
@@ -319,6 +330,7 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 		data:                 opt.data,
 		additionalAttributes: attrs,
 		failIfLocked:         opt.failIfLocked,
+		noWaitOnSameOwner:    opt.noWaitOnSameOwner,
 	}
 
 	getLockOptions.millisecondsToWait = defaultBuffer
@@ -394,6 +406,20 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
 		return true, l, err
+	}
+
+	if getLockOptions.noWaitOnSameOwner && existingLock != nil {
+		if existingLock.ownerName == c.ownerName {
+			c.logger.Println("Acquiring lock inmeditely because existing lock are also owned by", c.ownerName)
+			l, err := c.upsertAndMonitorExpiredLock(
+				getLockOptions.additionalAttributes,
+				getLockOptions.partitionKeyName,
+				getLockOptions.deleteLockOnRelease,
+				existingLock, newLockData, item,
+				recordVersionNumber,
+				getLockOptions.sessionMonitor)
+			return true, l, err
+		}
 	}
 
 	// we know that we didnt enter the if block above because it returns at the end.

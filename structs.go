@@ -32,6 +32,7 @@ type acquireLockOptions struct {
 	additionalTimeToWaitForLock time.Duration
 	additionalAttributes        map[string]*dynamodb.AttributeValue
 	sessionMonitor              *sessionMonitor
+	noWaitOnSameOwner           bool
 }
 
 type getLockOptions struct {
@@ -47,6 +48,7 @@ type getLockOptions struct {
 	data                              []byte
 	additionalAttributes              map[string]*dynamodb.AttributeValue
 	failIfLocked                      bool
+	noWaitOnSameOwner                 bool
 }
 
 type releaseLockOptions struct {
