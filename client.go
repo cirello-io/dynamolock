@@ -398,7 +398,6 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (*Lock, error) {
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
 		if err != nil && isLockNotGrantedError(err) {
-			c.logger.Println("exit #1")
 			return nil, nil
 		}
 		return l, err
@@ -435,7 +434,6 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (*Lock, error) {
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
 		if err != nil && isLockNotGrantedError(err) {
-			c.logger.Println("exit #2")
 			return nil, nil
 		}
 		return l, err
@@ -453,7 +451,6 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (*Lock, error) {
 			cause: &TimeoutError{Age: t},
 		}
 	}
-	c.logger.Println("exit #3")
 	return nil, nil
 }
 
