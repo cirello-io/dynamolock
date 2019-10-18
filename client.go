@@ -332,19 +332,23 @@ func (c *Client) acquireLock(opt *acquireLockOptions) (*Lock, error) {
 	}
 
 	for {
-		stop, l, err := c.storeLock(&getLockOptions)
-		if err != nil || stop {
-			return l, err
+		l, err := c.storeLock(&getLockOptions)
+		if err != nil {
+			return nil, err
+		} else if l != nil {
+			return l, nil
 		}
+		c.logger.Println("Sleeping for a refresh period of ", getLockOptions.refreshPeriodDuration)
+		time.Sleep(getLockOptions.refreshPeriodDuration)
 	}
 }
 
-func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) {
+func (c *Client) storeLock(getLockOptions *getLockOptions) (*Lock, error) {
 	c.logger.Println("Call GetItem to see if the lock for ",
 		c.partitionKeyName, " =", getLockOptions.partitionKeyName, " exists in the table")
 	existingLock, err := c.getLockFromDynamoDB(*getLockOptions)
 	if err != nil {
-		return true, nil, err
+		return nil, err
 	}
 
 	var newLockData []byte
@@ -393,7 +397,11 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 			item,
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
-		return true, l, err
+		if err != nil && isLockNotGrantedError(err) {
+			c.logger.Println("exit #1")
+			return nil, nil
+		}
+		return l, err
 	}
 
 	// we know that we didnt enter the if block above because it returns at the end.
@@ -409,7 +417,7 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 
 		// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
 		if getLockOptions.failIfLocked {
-			return true, nil, &LockNotGrantedError{msg: "Didn't acquire lock because it is locked and request is configured not to retry."}
+			return nil, &LockNotGrantedError{msg: "Didn't acquire lock because it is locked and request is configured not to retry."}
 		}
 
 		getLockOptions.lockTryingToBeAcquired = existingLock
@@ -417,37 +425,36 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 			getLockOptions.alreadySleptOnceForOneLeasePeriod = true
 			getLockOptions.millisecondsToWait += existingLock.leaseDuration
 		}
-	} else {
-		if getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber {
-			/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
-			if getLockOptions.lockTryingToBeAcquired.isExpired() {
-				l, err := c.upsertAndMonitorExpiredLock(
-					getLockOptions.additionalAttributes,
-					getLockOptions.partitionKeyName,
-					getLockOptions.deleteLockOnRelease,
-					existingLock, newLockData, item,
-					recordVersionNumber,
-					getLockOptions.sessionMonitor)
-				return true, l, err
-			}
-		} else {
-			/*
-			 * If the version number changed since we last queried the lock, then we need to update
-			 * lockTryingToBeAcquired as the lock has been refreshed since we last checked
-			 */
-			getLockOptions.lockTryingToBeAcquired = existingLock
+	} else if getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber && getLockOptions.lockTryingToBeAcquired.isExpired() {
+		/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
+		l, err := c.upsertAndMonitorExpiredLock(
+			getLockOptions.additionalAttributes,
+			getLockOptions.partitionKeyName,
+			getLockOptions.deleteLockOnRelease,
+			existingLock, newLockData, item,
+			recordVersionNumber,
+			getLockOptions.sessionMonitor)
+		if err != nil && isLockNotGrantedError(err) {
+			c.logger.Println("exit #2")
+			return nil, nil
 		}
+		return l, err
+	} else if getLockOptions.lockTryingToBeAcquired.recordVersionNumber != existingLock.recordVersionNumber {
+		/*
+		 * If the version number changed since we last queried the lock, then we need to update
+		 * lockTryingToBeAcquired as the lock has been refreshed since we last checked
+		 */
+		getLockOptions.lockTryingToBeAcquired = existingLock
 	}
 
 	if t := time.Since(getLockOptions.start); t > getLockOptions.millisecondsToWait {
-		return true, nil, &LockNotGrantedError{
-			msg:   "Didn't acquire lock after sleeping for " + t.String(),
+		return nil, &LockNotGrantedError{
+			msg:   "Didn't acquire lock after sleeping",
 			cause: &TimeoutError{Age: t},
 		}
 	}
-	c.logger.Println("Sleeping for a refresh period of ", getLockOptions.refreshPeriodDuration)
-	time.Sleep(getLockOptions.refreshPeriodDuration)
-	return false, nil, nil
+	c.logger.Println("exit #3")
+	return nil, nil
 }
 
 var pkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
