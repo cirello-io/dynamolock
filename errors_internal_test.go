@@ -44,6 +44,7 @@ func TestLockNotGrantedError(t *testing.T) {
 			msg:   "not granted with cause",
 			cause: &TimeoutError{expectedAge},
 		}
+		t.Log(notGranted.Error())
 		var errTimeout *TimeoutError
 		if !xerrors.As(notGranted, &errTimeout) {
 			t.Fatal("expected to find TimeoutError")
