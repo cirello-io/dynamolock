@@ -19,22 +19,39 @@ package dynamolock
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"golang.org/x/xerrors"
 )
 
 func TestLockNotGrantedError(t *testing.T) {
 	t.Parallel()
-
-	notGranted := &LockNotGrantedError{"not granted"}
-	if !isLockNotGrantedError(notGranted) {
-		t.Error("mismatched error type check: ", notGranted)
-	}
-	vanilla := errors.New("vanilla error")
-	if isLockNotGrantedError(vanilla) {
-		t.Error("mismatched error type check: ", vanilla)
-	}
+	t.Run("simply not granted", func(t *testing.T) {
+		notGranted := &LockNotGrantedError{msg: "not granted"}
+		if !isLockNotGrantedError(notGranted) {
+			t.Error("mismatched error type check: ", notGranted)
+		}
+		vanilla := errors.New("vanilla error")
+		if isLockNotGrantedError(vanilla) {
+			t.Error("mismatched error type check: ", vanilla)
+		}
+	})
+	t.Run("not granted with cause", func(t *testing.T) {
+		const expectedAge = 5 * time.Minute
+		notGranted := &LockNotGrantedError{
+			msg:   "not granted with cause",
+			cause: &TimeoutError{expectedAge},
+		}
+		var errTimeout *TimeoutError
+		if !xerrors.As(notGranted, &errTimeout) {
+			t.Fatal("expected to find TimeoutError")
+		}
+		if errTimeout.Age != expectedAge {
+			t.Fatal("age information lost along the way")
+		}
+	})
 }
 
 func TestParseDynamoDBError(t *testing.T) {

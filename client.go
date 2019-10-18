@@ -409,7 +409,7 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 
 		// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
 		if getLockOptions.failIfLocked {
-			return true, nil, &LockNotGrantedError{"Didn't acquire lock because it is locked and request is configured not to retry."}
+			return true, nil, &LockNotGrantedError{msg: "Didn't acquire lock because it is locked and request is configured not to retry."}
 		}
 
 		getLockOptions.lockTryingToBeAcquired = existingLock
@@ -440,7 +440,10 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (bool, *Lock, error) 
 	}
 
 	if t := time.Since(getLockOptions.start); t > getLockOptions.millisecondsToWait {
-		return true, nil, &LockNotGrantedError{"Didn't acquire lock after sleeping for " + t.String()}
+		return true, nil, &LockNotGrantedError{
+			msg:   "Didn't acquire lock after sleeping for " + t.String(),
+			cause: &TimeoutError{Age: t},
+		}
 	}
 	c.logger.Println("Sleeping for a refresh period of ", getLockOptions.refreshPeriodDuration)
 	time.Sleep(getLockOptions.refreshPeriodDuration)
