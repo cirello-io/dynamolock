@@ -16,9 +16,23 @@ limitations under the License.
 
 package dynamolock
 
+import "testing"
+
 // RVN exposes internal record version number for testing only.
 func (l *Lock) RVN() string {
 	l.semaphore.Lock()
 	defer l.semaphore.Unlock()
 	return l.recordVersionNumber
+}
+
+func TestExpiredNilLock(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatal("unexpected panic:", r)
+		}
+	}()
+	var l *Lock
+	if !l.IsExpired() {
+		t.Fatal("nil locks should report as expired")
+	}
 }
