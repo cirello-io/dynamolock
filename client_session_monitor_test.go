@@ -91,7 +91,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 		Region:   aws.String("us-west-2"),
 	})
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks-monitor",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
 		dynamolock.DisableHeartbeat(),
@@ -102,7 +102,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable("locks-monitor",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
