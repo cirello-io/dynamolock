@@ -27,6 +27,28 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
+func TestCancelationWithoutHearbeat(t *testing.T) {
+	isDynamoLockAvailable(t)
+	t.Parallel()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatal("panic found when closing client without heartbeat")
+		}
+	}()
+	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
+		Endpoint: aws.String("http://localhost:8000/"),
+		Region:   aws.String("us-west-2"),
+	})
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.DisableHeartbeat(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+}
+
 func TestHeartbeatHandover(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
