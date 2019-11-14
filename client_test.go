@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
 func isDynamoLockAvailable(t *testing.T) {
@@ -1007,4 +1009,36 @@ func (l *lockStepBuffer) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.buf.String()
+}
+
+type fakeDynamoDB struct {
+	dynamodbiface.DynamoDBAPI
+}
+
+func (f *fakeDynamoDB) GetItem(*dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+	return nil, errors.New("service is offline")
+}
+
+func TestBadDynamoDB(t *testing.T) {
+	t.Parallel()
+	t.Run("get", func(t *testing.T) {
+		svc := &fakeDynamoDB{}
+		c, err := dynamolock.New(svc, "locksHBError")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.Get("bad-dynamodb"); err == nil {
+			t.Fatal("expected error missing")
+		}
+	})
+	t.Run("acquire", func(t *testing.T) {
+		svc := &fakeDynamoDB{}
+		c, err := dynamolock.New(svc, "locksHBError")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.AcquireLock("bad-dynamodb"); err == nil {
+			t.Fatal("expected error missing")
+		}
+	})
 }
