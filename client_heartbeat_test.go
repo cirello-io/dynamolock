@@ -250,7 +250,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 		if err != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		lockedItemBeta, err := c2.AcquireLock(lockName)
+		lockedItemBeta, err := c2.AcquireLock(lockName, dynamolock.WithAdditionalTimeToWaitForLock(2*time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
