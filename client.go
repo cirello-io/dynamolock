@@ -709,6 +709,7 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 	}
 }
 
+// WithTags changes the tags of the table. If not specified, the table will have empty tags.
 func WithTags(tags []*dynamodb.Tag) CreateTableOption {
 	return func(opt *createDynamoDBTableOptions) {
 		opt.tags = tags
