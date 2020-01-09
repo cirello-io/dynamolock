@@ -709,6 +709,12 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 	}
 }
 
+func WithTags(tags []*dynamodb.Tag) CreateTableOption {
+	return func(opt *createDynamoDBTableOptions) {
+		opt.tags = tags
+	}
+}
+
 // WithProvisionedThroughput changes the billing mode of DynamoDB
 // and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request
 func WithProvisionedThroughput(provisionedThroughput *dynamodb.ProvisionedThroughput) CreateTableOption {
