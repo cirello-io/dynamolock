@@ -60,4 +60,5 @@ type createDynamoDBTableOptions struct {
 	provisionedThroughput *dynamodb.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string
+	tags                  []*dynamodb.Tag
 }

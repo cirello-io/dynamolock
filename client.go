@@ -709,6 +709,13 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 	}
 }
 
+// WithTags changes the tags of the table. If not specified, the table will have empty tags.
+func WithTags(tags []*dynamodb.Tag) CreateTableOption {
+	return func(opt *createDynamoDBTableOptions) {
+		opt.tags = tags
+	}
+}
+
 // WithProvisionedThroughput changes the billing mode of DynamoDB
 // and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request
 func WithProvisionedThroughput(provisionedThroughput *dynamodb.ProvisionedThroughput) CreateTableOption {
@@ -742,6 +749,10 @@ func (c *Client) createTable(opt *createDynamoDBTableOptions) (*dynamodb.CreateT
 
 	if opt.provisionedThroughput != nil {
 		createTableInput.ProvisionedThroughput = opt.provisionedThroughput
+	}
+
+	if opt.tags != nil {
+		createTableInput.Tags = opt.tags
 	}
 
 	return c.dynamoDB.CreateTable(createTableInput)
