@@ -30,23 +30,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 )
 
 const (
-	dataPathExpressionVariable               = "#d"
-	dataValueExpressionVariable              = ":d"
-	isReleasedPathExpressionVariable         = "#ir"
-	isReleasedValue                          = "1"
-	isReleasedValueExpressionVariable        = ":ir"
-	leaseDurationPathValueExpressionVariable = "#ld"
-	leaseDurationValueExpressionVariable     = ":ld"
-	newRvnValueExpressionVariable            = ":newRvn"
-	ownerNamePathExpressionVariable          = "#on"
-	ownerNameValueExpressionVariable         = ":on"
-	pkPathExpressionVariable                 = "#pk"
-	rvnPathExpressionVariable                = "#rvn"
-	rvnValueExpressionVariable               = ":rvn"
-
 	attrData                = "data"
 	attrOwnerName           = "ownerName"
 	attrLeaseDuration       = "leaseDuration"
@@ -57,31 +44,14 @@ const (
 )
 
 var (
-	pkExistsAndOwnerNameSameAndRvnSameCondition = fmt.Sprintf("%s AND %s = %s",
-		pkExistsAndRvnIsTheSameCondition, ownerNamePathExpressionVariable, ownerNameValueExpressionVariable)
-
-	updateLeaseDurationAndRvnAndRemoveData = fmt.Sprintf("%s REMOVE %s",
-		updateLeaseDurationAndRvn, dataPathExpressionVariable)
-
-	updateLeaseDurationAndRvnAndData = fmt.Sprintf("%s, %s = %s",
-		updateLeaseDurationAndRvn, dataPathExpressionVariable, dataValueExpressionVariable)
-
-	updateLeaseDurationAndRvn = fmt.Sprintf(
-		"SET %s = %s, %s = %s",
-		leaseDurationPathValueExpressionVariable, leaseDurationValueExpressionVariable,
-		rvnPathExpressionVariable, newRvnValueExpressionVariable)
-
-	updateIsReleasedAndData = fmt.Sprintf("%s, %s = %s",
-		updateIsReleased, dataPathExpressionVariable, dataValueExpressionVariable)
-
-	updateIsReleased = fmt.Sprintf("SET %s = %s", isReleasedPathExpressionVariable, isReleasedValueExpressionVariable)
+	dataAttr          = expression.Name(attrData)
+	ownerNameAttr     = expression.Name(attrOwnerName)
+	leaseDurationAttr = expression.Name(attrLeaseDuration)
+	rvnAttr           = expression.Name(attrRecordVersionNumber)
+	isReleasedAttr    = expression.Name(attrIsReleased)
 )
 
-var isReleasedAttributeValue = &dynamodb.AttributeValue{S: aws.String(isReleasedValue)}
-var acquireLockThatDoesntExistOrIsReleasedCondition = fmt.Sprintf(
-	"attribute_not_exists(%s) OR (attribute_exists(%s) AND %s = %s)",
-	pkPathExpressionVariable, pkPathExpressionVariable,
-	isReleasedPathExpressionVariable, isReleasedValueExpressionVariable)
+var isReleasedAttrVal = expression.Value("1")
 
 // Logger defines the minimum desired logger interface for the lock client.
 type Logger interface {
@@ -463,10 +433,6 @@ func (c *Client) storeLock(getLockOptions *getLockOptions) (*Lock, error) {
 	return nil, nil
 }
 
-var pkExistsAndRvnIsTheSameCondition = fmt.Sprintf(
-	"attribute_exists(%s) AND %s = %s",
-	pkPathExpressionVariable, rvnPathExpressionVariable, rvnValueExpressionVariable)
-
 func (c *Client) upsertAndMonitorExpiredLock(
 	additionalAttributes map[string]*dynamodb.AttributeValue,
 	key string,
@@ -477,24 +443,17 @@ func (c *Client) upsertAndMonitorExpiredLock(
 	recordVersionNumber string,
 	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
-	var conditionalExpression string
-	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable: {S: aws.String(existingLock.recordVersionNumber)},
-	}
-
-	expressionAttributeNames := map[string]*string{
-		pkPathExpressionVariable:  aws.String(c.partitionKeyName),
-		rvnPathExpressionVariable: aws.String(attrRecordVersionNumber),
-	}
-
-	conditionalExpression = pkExistsAndRvnIsTheSameCondition
-
+	cond := expression.And(
+		expression.AttributeExists(expression.Name(c.partitionKeyName)),
+		expression.Equal(rvnAttr, expression.Value(existingLock.recordVersionNumber)),
+	)
+	putItemExpr, _ := expression.NewBuilder().WithCondition(cond).Build()
 	putItemRequest := &dynamodb.PutItemInput{
 		Item:                      item,
 		TableName:                 aws.String(c.tableName),
-		ConditionExpression:       aws.String(conditionalExpression),
-		ExpressionAttributeNames:  expressionAttributeNames,
-		ExpressionAttributeValues: expressionAttributeValues,
+		ConditionExpression:       putItemExpr.Condition(),
+		ExpressionAttributeNames:  putItemExpr.Names(),
+		ExpressionAttributeValues: putItemExpr.Values(),
 	}
 
 	c.logger.Println("Acquiring an existing lock whose revisionVersionNumber did not change for ",
@@ -513,22 +472,21 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	recordVersionNumber string,
 	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
-
-	expressionAttributeNames := map[string]*string{
-		pkPathExpressionVariable:         aws.String(c.partitionKeyName),
-		isReleasedPathExpressionVariable: aws.String(attrIsReleased),
-	}
-
-	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		isReleasedValueExpressionVariable: isReleasedAttributeValue,
-	}
+	cond := expression.Or(
+		expression.AttributeNotExists(expression.Name(c.partitionKeyName)),
+		expression.And(
+			expression.AttributeExists(expression.Name(c.partitionKeyName)),
+			expression.Equal(isReleasedAttr, isReleasedAttrVal),
+		),
+	)
+	putItemExpr, _ := expression.NewBuilder().WithCondition(cond).Build()
 
 	req := &dynamodb.PutItemInput{
 		Item:                      item,
 		TableName:                 aws.String(c.tableName),
-		ConditionExpression:       aws.String(acquireLockThatDoesntExistOrIsReleasedCondition),
-		ExpressionAttributeNames:  expressionAttributeNames,
-		ExpressionAttributeValues: expressionAttributeValues,
+		ConditionExpression:       putItemExpr.Condition(),
+		ExpressionAttributeNames:  putItemExpr.Names(),
+		ExpressionAttributeValues: putItemExpr.Values(),
 	}
 
 	// No one has the lock, go ahead and acquire it. The person storing the
@@ -802,6 +760,17 @@ func WithDataAfterRelease(data []byte) ReleaseLockOption {
 // during the act of releasing a lock.
 type ReleaseLockOption func(*releaseLockOptions)
 
+func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string) expression.ConditionBuilder {
+	cond := expression.And(
+		expression.And(
+			expression.AttributeExists(expression.Name(partitionKeyName)),
+			expression.Equal(rvnAttr, expression.Value(recordVersionNumber)),
+		),
+		expression.Equal(ownerNameAttr, expression.Value(ownerName)),
+	)
+	return cond
+}
+
 func (c *Client) releaseLock(lockItem *Lock, opts ...ReleaseLockOption) error {
 	options := &releaseLockOptions{
 		lockItem: lockItem,
@@ -829,61 +798,57 @@ func (c *Client) releaseLock(lockItem *Lock, opts ...ReleaseLockOption) error {
 	lockItem.isReleased = true
 	c.locks.Delete(lockItem.uniqueIdentifier())
 
-	var conditionalExpression string
-	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable:       {S: aws.String(lockItem.recordVersionNumber)},
-		ownerNameValueExpressionVariable: {S: aws.String(lockItem.ownerName)},
-	}
-	expressionAttributeNames := map[string]*string{
-		pkPathExpressionVariable:        aws.String(c.partitionKeyName),
-		ownerNamePathExpressionVariable: aws.String(attrOwnerName),
-		rvnPathExpressionVariable:       aws.String(attrRecordVersionNumber),
-	}
-
-	conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
-
 	key := c.getItemKeys(lockItem)
+	ownershipLockCond := ownershipLockCondition(c.partitionKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
 	if deleteLock {
-		deleteItemRequest := &dynamodb.DeleteItemInput{
-			TableName:                 aws.String(c.tableName),
-			Key:                       key,
-			ConditionExpression:       aws.String(conditionalExpression),
-			ExpressionAttributeNames:  expressionAttributeNames,
-			ExpressionAttributeValues: expressionAttributeValues,
-		}
-		_, err := c.dynamoDB.DeleteItem(deleteItemRequest)
+		err := c.deleteLock(ownershipLockCond, key)
 		if err != nil {
 			return err
 		}
 	} else {
-		var updateExpression string
-		expressionAttributeNames[isReleasedPathExpressionVariable] = aws.String(attrIsReleased)
-		expressionAttributeValues[isReleasedValueExpressionVariable] = isReleasedAttributeValue
-
-		if len(data) > 0 {
-			updateExpression = updateIsReleasedAndData
-			expressionAttributeNames[dataPathExpressionVariable] = aws.String(attrData)
-			expressionAttributeValues[dataValueExpressionVariable] = &dynamodb.AttributeValue{B: data}
-		} else {
-			updateExpression = updateIsReleased
-		}
-
-		updateItemRequest := &dynamodb.UpdateItemInput{
-			TableName:                 aws.String(c.tableName),
-			Key:                       key,
-			UpdateExpression:          aws.String(updateExpression),
-			ConditionExpression:       aws.String(conditionalExpression),
-			ExpressionAttributeNames:  expressionAttributeNames,
-			ExpressionAttributeValues: expressionAttributeValues,
-		}
-
-		_, err := c.dynamoDB.UpdateItem(updateItemRequest)
+		err := c.updateLock(data, ownershipLockCond, key)
 		if err != nil {
 			return err
 		}
 	}
 	c.removeKillSessionMonitor(lockItem.uniqueIdentifier())
 	return nil
+}
+
+func (c *Client) deleteLock(ownershipLockCond expression.ConditionBuilder, key map[string]*dynamodb.AttributeValue) error {
+	delExpr, _ := expression.NewBuilder().WithCondition(ownershipLockCond).Build()
+	deleteItemRequest := &dynamodb.DeleteItemInput{
+		TableName:                 aws.String(c.tableName),
+		Key:                       key,
+		ConditionExpression:       delExpr.Condition(),
+		ExpressionAttributeNames:  delExpr.Names(),
+		ExpressionAttributeValues: delExpr.Values(),
+	}
+	_, err := c.dynamoDB.DeleteItem(deleteItemRequest)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) updateLock(data []byte, ownershipLockCond expression.ConditionBuilder, key map[string]*dynamodb.AttributeValue) error {
+	update := expression.Set(isReleasedAttr, isReleasedAttrVal)
+	if len(data) > 0 {
+		update = update.Set(dataAttr, expression.Value(data))
+	}
+	updateExpr, _ := expression.NewBuilder().WithUpdate(update).WithCondition(ownershipLockCond).Build()
+
+	updateItemRequest := &dynamodb.UpdateItemInput{
+		TableName:                 aws.String(c.tableName),
+		Key:                       key,
+		UpdateExpression:          updateExpr.Update(),
+		ConditionExpression:       updateExpr.Condition(),
+		ExpressionAttributeNames:  updateExpr.Names(),
+		ExpressionAttributeValues: updateExpr.Values(),
+	}
+
+	_, err := c.dynamoDB.UpdateItem(updateItemRequest)
+	return err
 }
 
 func (c *Client) releaseAllLocks() error {
