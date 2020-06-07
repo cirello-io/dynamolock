@@ -21,6 +21,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 )
 
 // SendHeartbeatOption allows to proceed with Lock content changes in the
@@ -83,43 +84,27 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 	// 2. I know the current version number
 	// 3. The lock already exists (UpdateItem API can cause a new item to be created if you do not condition the primary keys with attribute_exists)
 
-	var conditionalExpression string
-	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
-		rvnValueExpressionVariable:       {S: aws.String(lockItem.recordVersionNumber)},
-		ownerNameValueExpressionVariable: {S: aws.String(lockItem.ownerName)},
-	}
-	expressionAttributeNames := map[string]*string{
-		pkPathExpressionVariable:                 aws.String(c.partitionKeyName),
-		leaseDurationPathValueExpressionVariable: aws.String(attrLeaseDuration),
-		rvnPathExpressionVariable:                aws.String(attrRecordVersionNumber),
-		ownerNamePathExpressionVariable:          aws.String(attrOwnerName),
-	}
+	newRvn := c.generateRecordVersionNumber()
 
-	conditionalExpression = pkExistsAndOwnerNameSameAndRvnSameCondition
+	cond := ownershipLockCondition(c.partitionKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
+	update := expression.
+		Set(leaseDurationAttr, expression.Value(leaseDuration.String())).
+		Set(rvnAttr, expression.Value(newRvn))
 
-	rvn := c.generateRecordVersionNumber()
-
-	var updateExpression string
-	expressionAttributeValues[newRvnValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(rvn)}
-	expressionAttributeValues[leaseDurationValueExpressionVariable] = &dynamodb.AttributeValue{S: aws.String(leaseDuration.String())}
 	if options.deleteData {
-		expressionAttributeNames[dataPathExpressionVariable] = aws.String(attrData)
-		updateExpression = updateLeaseDurationAndRvnAndRemoveData
+		update.Remove(dataAttr)
 	} else if len(options.data) > 0 {
-		expressionAttributeNames[dataPathExpressionVariable] = aws.String(attrData)
-		expressionAttributeValues[dataValueExpressionVariable] = &dynamodb.AttributeValue{B: options.data}
-		updateExpression = updateLeaseDurationAndRvnAndData
-	} else {
-		updateExpression = updateLeaseDurationAndRvn
+		update.Set(dataAttr, expression.Value(options.data))
 	}
+	updateExpr, _ := expression.NewBuilder().WithCondition(cond).WithUpdate(update).Build()
 
 	updateItemInput := &dynamodb.UpdateItemInput{
 		TableName:                 aws.String(c.tableName),
 		Key:                       c.getItemKeys(lockItem),
-		ConditionExpression:       aws.String(conditionalExpression),
-		UpdateExpression:          aws.String(updateExpression),
-		ExpressionAttributeNames:  expressionAttributeNames,
-		ExpressionAttributeValues: expressionAttributeValues,
+		ConditionExpression:       updateExpr.Condition(),
+		UpdateExpression:          updateExpr.Update(),
+		ExpressionAttributeNames:  updateExpr.Names(),
+		ExpressionAttributeValues: updateExpr.Values(),
 	}
 
 	lastUpdateOfLock := time.Now()
@@ -133,6 +118,6 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 		return err
 	}
 
-	lockItem.updateRVN(rvn, lastUpdateOfLock, leaseDuration)
+	lockItem.updateRVN(newRvn, lastUpdateOfLock, leaseDuration)
 	return nil
 }
