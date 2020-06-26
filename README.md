@@ -135,3 +135,12 @@ the lock is stale and expire it.
 
 What this means is that, even if two different machines disagree about what time
 it is, they will still avoid clobbering each other's locks.
+
+## Required IAM Actions
+For an IAM role to take full advantage of `dynamolock`, it must be allowed to
+perform all of the following actions on the DynamoDB table containing the locks:
+
+* `GetItem`
+* `PutItem`
+* `UpdateItem`
+* `DeleteItem`
