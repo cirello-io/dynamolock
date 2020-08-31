@@ -317,9 +317,6 @@ func (c *Client) acquireLock(ctx context.Context, opt *acquireLockOptions) (*Loc
 	}
 
 	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 		l, err := c.storeLock(ctx, &getLockOptions)
 		if err != nil {
 			return nil, err
@@ -327,7 +324,11 @@ func (c *Client) acquireLock(ctx context.Context, opt *acquireLockOptions) (*Loc
 			return l, nil
 		}
 		c.logger.Println("Sleeping for a refresh period of ", getLockOptions.refreshPeriodDuration)
-		time.Sleep(getLockOptions.refreshPeriodDuration)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(getLockOptions.refreshPeriodDuration):
+		}
 	}
 }
 
