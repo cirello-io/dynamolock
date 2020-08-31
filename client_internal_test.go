@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
@@ -31,13 +33,14 @@ import (
 type mockDynamoDBClient struct {
 	dynamodbiface.DynamoDBAPI
 }
-func (m *mockDynamoDBClient) PutItem(input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+
+func (m *mockDynamoDBClient) PutItemWithContext(ctx context.Context, input *dynamodb.PutItemInput, _ ...request.Option) (*dynamodb.PutItemOutput, error) {
 	return &dynamodb.PutItemOutput{}, nil
 }
-func (m *mockDynamoDBClient) GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (m *mockDynamoDBClient) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, _ ...request.Option) (*dynamodb.GetItemOutput, error) {
 	return &dynamodb.GetItemOutput{}, nil
 }
-func (m *mockDynamoDBClient) UpdateItem(input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
+func (m *mockDynamoDBClient) UpdateItemWithContext(ctx context.Context, input *dynamodb.UpdateItemInput, _ ...request.Option) (*dynamodb.UpdateItemOutput, error) {
 	return &dynamodb.UpdateItemOutput{}, nil
 }
 
@@ -45,7 +48,7 @@ func (m *mockDynamoDBClient) UpdateItem(input *dynamodb.UpdateItemInput) (*dynam
 This test checks for lock leaks during closing, that is, to make sure that no locks
 are able to be acquired while the client is closing, and to ensure that we don't have
 any locks in the internal lock map after a client is closed.
- */
+*/
 func TestCloseRace(t *testing.T) {
 	mockSvc := &mockDynamoDBClient{}
 

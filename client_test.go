@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -29,6 +30,7 @@ import (
 
 	"cirello.io/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
@@ -1015,7 +1017,7 @@ type fakeDynamoDB struct {
 	dynamodbiface.DynamoDBAPI
 }
 
-func (f *fakeDynamoDB) GetItem(*dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (f *fakeDynamoDB) GetItemWithContext(context.Context, *dynamodb.GetItemInput, ...request.Option) (*dynamodb.GetItemOutput, error) {
 	return nil, errors.New("service is offline")
 }
 

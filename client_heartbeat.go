@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock
 
 import (
+	"context"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -49,12 +50,22 @@ func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 	}
 }
 
-// SendHeartbeat indicatee that the given lock is still being worked on. If
+// SendHeartbeat indicates that the given lock is still being worked on. If
 // using WithHeartbeatPeriod > 0 when setting up this object, then this method
 // is unnecessary, because the background thread will be periodically calling it
 // and sending heartbeats. However, if WithHeartbeatPeriod = 0, then this method
 // must be called to instruct DynamoDB that the lock should not be expired.
 func (c *Client) SendHeartbeat(lockItem *Lock, opts ...SendHeartbeatOption) error {
+	return c.SendHeartbeatWithContext(context.Background(), lockItem, opts...)
+}
+
+// SendHeartbeatWithContext indicates that the given lock is still being worked
+// on. If using WithHeartbeatPeriod > 0 when setting up this object, then this
+// method is unnecessary, because the background thread will be periodically
+// calling it and sending heartbeats. However, if WithHeartbeatPeriod = 0, then
+// this method must be called to instruct DynamoDB that the lock should not be
+// expired. The given context is passed down to the underlying dynamoDB call.
+func (c *Client) SendHeartbeatWithContext(ctx context.Context, lockItem *Lock, opts ...SendHeartbeatOption) error {
 	if c.isClosed() {
 		return ErrClientClosed
 	}
@@ -64,10 +75,10 @@ func (c *Client) SendHeartbeat(lockItem *Lock, opts ...SendHeartbeatOption) erro
 	for _, opt := range opts {
 		opt(sho)
 	}
-	return c.sendHeartbeat(sho)
+	return c.sendHeartbeat(ctx, sho)
 }
 
-func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
+func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions) error {
 	leaseDuration := c.leaseDuration
 
 	lockItem := options.lockItem
@@ -109,7 +120,7 @@ func (c *Client) sendHeartbeat(options *sendHeartbeatOptions) error {
 
 	lastUpdateOfLock := time.Now()
 
-	_, err := c.dynamoDB.UpdateItem(updateItemInput)
+	_, err := c.dynamoDB.UpdateItemWithContext(ctx, updateItemInput)
 	if err != nil {
 		err := parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
 		if isLockNotGrantedError(err) {
