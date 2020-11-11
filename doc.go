@@ -56,6 +56,8 @@ limitations under the License.
 //		dynamolock.WithCustomPartitionKeyName("key"),
 //	)
 //
+//  // -- at this point you must wait for DynamoDB to complete the creation.
+//
 //	data := []byte("some content a")
 //	lockedItem, err := c.AcquireLock("spock",
 //		dynamolock.WithData(data),

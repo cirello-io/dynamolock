@@ -48,6 +48,7 @@ since it takes a couple minutes for DynamoDB to provision your table for you.
 The package level documentation comment has an example of how to use this
 package. Here is some example code to get you started:
 
+First you have to create the table and wait for DynamoDB to complete:
 ```Go
 package main
 
@@ -75,13 +76,47 @@ func main() {
 	defer c.Close()
 
 	log.Println("ensuring table exists")
-	c.CreateTable("locks",
+	_, err := c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+Once you see the table is created in the DynamoDB console, you should be ready
+to run:
+
+```Go
+package main
+
+import (
+	"log"
+
+	"cirello.io/dynamolock"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+)
+
+func main() {
+	svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
+		Region: aws.String("us-west-2"),
+	})))
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer c.Close()
 
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("spock",
