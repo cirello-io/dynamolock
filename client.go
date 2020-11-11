@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
@@ -662,8 +661,7 @@ func (c *Client) heartbeat(ctx context.Context) {
 // CreateTable prepares a DynamoDB table with the right schema for it to be used
 // by this locking library. The table should be set up in advance, because it
 // takes a few minutes for DynamoDB to provision a new instance. Also, if the
-// table already exists, it will return an error.  This call waits for the table
-// creation to complete before returning.
+// table already exists, it will return an error.
 func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	return c.CreateTableWithContext(context.Background(), tableName, opts...)
 }
@@ -672,8 +670,7 @@ func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dyna
 // to be used by this locking library. The table should be set up in advance,
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
-// is passed down to the underlying dynamoDB call. This call waits for the table
-// creation to complete before returning.
+// is passed down to the underlying dynamoDB call.
 func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
@@ -686,26 +683,7 @@ func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, o
 	for _, opt := range opts {
 		opt(createTableOptions)
 	}
-	out, err := c.createTable(ctx, createTableOptions)
-	if err != nil {
-		return out, err
-	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return out, err
-		}
-		_, err := c.dynamoDB.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-			TableName: aws.String(createTableOptions.tableName),
-		})
-		var aerr awserr.Error
-		if errors.As(err, &aerr) && aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
-			time.Sleep(c.leaseDuration)
-			continue
-		} else if err != nil {
-			return out, err
-		}
-		return out, nil
-	}
+	return c.createTable(ctx, createTableOptions)
 }
 
 // CreateTableOption is an options type for the CreateTable method in the lock
