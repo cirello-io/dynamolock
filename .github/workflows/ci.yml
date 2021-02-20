@@ -1,0 +1,41 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.16', '1.15', '1.14', '1.13', '1.12']
+    name: Go ${{ matrix.go }}
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local
+        ports:
+          - 8000:8000
+    env:
+      AWS_ACCESS_KEY_ID: AKID
+      AWS_SECRET_ACCESS_KEY: SECRET
+      GO111MODULE: on
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Download gomodules
+        run: go mod download
+      - name: Run tests
+        run: go test -race ./...
+        if: ${{ matrix.go != '1.16' }}
+      - name: Run tests with test coverage analysis
+        run: |
+          go test -race -covermode=atomic -coverprofile=covprofile -v ./...
+        if: ${{ matrix.go == '1.16' }}
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: covprofile
+        if: ${{ matrix.go == '1.16' }}
+
