@@ -54,7 +54,7 @@ func (e *LockNotGrantedError) Unwrap() error {
 	return e.cause
 }
 
-func isLockNotGrantedError(err error) bool {
+func IsLockNotGrantedError(err error) bool {
 	_, ok := err.(*LockNotGrantedError)
 	return ok
 }

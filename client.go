@@ -387,7 +387,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			item,
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
-		if err != nil && isLockNotGrantedError(err) {
+		if err != nil && IsLockNotGrantedError(err) {
 			return nil, nil
 		}
 		return l, err
@@ -424,7 +424,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			existingLock, newLockData, item,
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
-		if err != nil && isLockNotGrantedError(err) {
+		if err != nil && IsLockNotGrantedError(err) {
 			return nil, nil
 		}
 		return l, err

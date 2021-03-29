@@ -30,11 +30,11 @@ func TestLockNotGrantedError(t *testing.T) {
 	t.Parallel()
 	t.Run("simply not granted", func(t *testing.T) {
 		notGranted := &LockNotGrantedError{msg: "not granted"}
-		if !isLockNotGrantedError(notGranted) {
+		if !IsLockNotGrantedError(notGranted) {
 			t.Error("mismatched error type check: ", notGranted)
 		}
 		vanilla := errors.New("vanilla error")
-		if isLockNotGrantedError(vanilla) {
+		if IsLockNotGrantedError(vanilla) {
 			t.Error("mismatched error type check: ", vanilla)
 		}
 	})
