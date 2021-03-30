@@ -18,6 +18,7 @@ package dynamolock
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -123,7 +124,8 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 	_, err := c.dynamoDB.UpdateItemWithContext(ctx, updateItemInput)
 	if err != nil {
 		err := parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
-		if isLockNotGrantedError(err) {
+		var errNotGranted *LockNotGrantedError
+		if errors.As(err, &errNotGranted) {
 			c.locks.Delete(lockItem.uniqueIdentifier())
 		}
 		return err

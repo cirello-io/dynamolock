@@ -54,11 +54,6 @@ func (e *LockNotGrantedError) Unwrap() error {
 	return e.cause
 }
 
-func isLockNotGrantedError(err error) bool {
-	_, ok := err.(*LockNotGrantedError)
-	return ok
-}
-
 func parseDynamoDBError(err error, msg string) error {
 	if aerr, ok := err.(awserr.Error); ok {
 		switch aerr.Code() {

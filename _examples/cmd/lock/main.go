@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -14,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/urfave/cli"
-	"golang.org/x/xerrors"
 )
 
 func main() {
@@ -35,11 +36,11 @@ func main() {
 	app.Action = func(c *cli.Context) error {
 		lockName := c.Args().First()
 		if lockName == "" {
-			return xerrors.New("missing lock name")
+			return errors.New("missing lock name")
 		}
 		cmd := c.Args().Tail()
 		if len(cmd) == 0 {
-			return xerrors.New("missing command")
+			return errors.New("missing command")
 		}
 		tableName := c.String("table")
 		client, err := dialDynamoDB(tableName)
@@ -71,7 +72,7 @@ func main() {
 func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
 	session, err := session.NewSession()
 	if err != nil {
-		return nil, xerrors.Errorf("cannot create AWS session: %w", err)
+		return nil, fmt.Errorf("cannot create AWS session: %w", err)
 	}
 	client, err := dynamolock.New(
 		dynamodb.New(session),
@@ -81,7 +82,7 @@ func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot start dynamolock client: %w", err)
+		return nil, fmt.Errorf("cannot start dynamolock client: %w", err)
 	}
 	return client, nil
 }
@@ -96,9 +97,9 @@ func createTable(client *dynamolock.Client, tableName string) error {
 	)
 	if err != nil {
 		var awsErr awserr.RequestFailure
-		isTableAlreadyCreatedError := xerrors.As(err, &awsErr) && awsErr.StatusCode() == 400 && awsErr.Message() == "Cannot create preexisting table"
+		isTableAlreadyCreatedError := errors.As(err, &awsErr) && awsErr.StatusCode() == 400 && awsErr.Message() == "Cannot create preexisting table"
 		if !isTableAlreadyCreatedError {
-			return xerrors.Errorf("cannot create dynamolock client table: %w", err)
+			return fmt.Errorf("cannot create dynamolock client table: %w", err)
 		}
 	}
 	return nil
@@ -110,7 +111,7 @@ func grabLock(client *dynamolock.Client, lockName string, wait bool) (*dynamoloc
 		if err != nil && wait {
 			continue
 		} else if err != nil {
-			return nil, xerrors.Errorf("cannot lock %s: %w", lockName, err)
+			return nil, fmt.Errorf("cannot lock %s: %w", lockName, err)
 		}
 		return lock, err
 	}
@@ -133,7 +134,7 @@ func runCommand(ctx context.Context, lock *dynamolock.Lock, releaseOnError bool,
 				log.Println("cannot release lock after failure:", lockErr)
 			}
 		}
-		return xerrors.Errorf("error: %w", err)
+		return fmt.Errorf("error: %w", err)
 	}
 	if lockErr := lock.Close(); lockErr != nil {
 		log.Println("cannot release lock after completion:", lockErr)

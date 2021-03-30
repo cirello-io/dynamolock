@@ -1,8 +1,5 @@
 module cirello.io/dynamolock
 
-go 1.12
+go 1.13
 
-require (
-	github.com/aws/aws-sdk-go v1.38.7
-	golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898
-)
+require github.com/aws/aws-sdk-go v1.38.7

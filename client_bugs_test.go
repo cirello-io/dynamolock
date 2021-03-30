@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"cirello.io/dynamolock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"golang.org/x/xerrors"
 )
 
 func TestIssue56(t *testing.T) {
@@ -79,7 +79,7 @@ func TestIssue56(t *testing.T) {
 					return
 				default:
 					var errTimeout *dynamolock.TimeoutError
-					if !xerrors.As(err, &errTimeout) {
+					if !errors.As(err, &errTimeout) {
 						t.Error("unexpected error:", err)
 						return
 					}

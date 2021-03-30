@@ -23,18 +23,18 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"golang.org/x/xerrors"
 )
 
 func TestLockNotGrantedError(t *testing.T) {
 	t.Parallel()
 	t.Run("simply not granted", func(t *testing.T) {
+		var errNotGranted *LockNotGrantedError
 		notGranted := &LockNotGrantedError{msg: "not granted"}
-		if !isLockNotGrantedError(notGranted) {
+		if !errors.As(notGranted, &errNotGranted) {
 			t.Error("mismatched error type check: ", notGranted)
 		}
 		vanilla := errors.New("vanilla error")
-		if isLockNotGrantedError(vanilla) {
+		if errors.As(vanilla, &errNotGranted) {
 			t.Error("mismatched error type check: ", vanilla)
 		}
 	})
@@ -46,7 +46,7 @@ func TestLockNotGrantedError(t *testing.T) {
 		}
 		t.Log(notGranted.Error())
 		var errTimeout *TimeoutError
-		if !xerrors.As(notGranted, &errTimeout) {
+		if !errors.As(notGranted, &errTimeout) {
 			t.Fatal("expected to find TimeoutError")
 		}
 		if errTimeout.Age != expectedAge {
