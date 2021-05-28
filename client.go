@@ -981,7 +981,7 @@ func (c *Client) CloseWithContext(ctx context.Context) error {
 		// to prevent new locks from being acquired.
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		err = c.releaseAllLocks(context.Background())
+		err = c.releaseAllLocks(ctx)
 		c.stopHeartbeat()
 		c.closed = true
 	})
