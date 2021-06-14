@@ -55,15 +55,27 @@ var isReleasedAttrVal = expression.Value("1")
 
 // Logger defines the minimum desired logger interface for the lock client.
 type Logger interface {
+	Println(v ...interface{})
+}
+
+// ContextLogger defines a logger interface that can be used to pass extra information to the implementation.
+// For example, if you use zap, you may have extra fields you want to add to the log line. You
+// can add those extra fields to the parent context of calls like AcquireLockWithContext, and then retrieve them in
+// your implementation of ContextLogger.
+type ContextLogger interface {
 	Println(ctx context.Context, v ...interface{})
 }
 
-type DefaultLogger struct {
-	Logger *log.Logger
+type contextLoggerAdapter struct {
+	logger Logger
 }
 
-func (l *DefaultLogger) Println(_ context.Context, v ...interface{}) {
-	l.Logger.Println(v...)
+func newContextLogAdapter(l Logger) *contextLoggerAdapter {
+	return &contextLoggerAdapter{logger: l}
+}
+
+func (cla *contextLoggerAdapter) Println(_ context.Context, v ...interface{}) {
+	cla.logger.Println(v)
 }
 
 // Client is a dynamoDB based distributed lock client.
@@ -79,7 +91,7 @@ type Client struct {
 	locks                       sync.Map
 	sessionMonitorCancellations sync.Map
 
-	logger Logger
+	logger ContextLogger
 
 	stopHeartbeat context.CancelFunc
 
@@ -103,8 +115,8 @@ func New(dynamoDB dynamodbiface.DynamoDBAPI, tableName string, opts ...ClientOpt
 		leaseDuration:    defaultLeaseDuration,
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),
-		logger: &DefaultLogger{
-			Logger: log.New(ioutil.Discard, "", 0),
+		logger: &contextLoggerAdapter{
+			logger: log.New(ioutil.Discard, "", 0),
 		},
 		stopHeartbeat: func() {},
 	}
@@ -162,6 +174,12 @@ func DisableHeartbeat() ClientOption {
 // WithLogger injects a logger into the client, so its internals can be
 // recorded.
 func WithLogger(l Logger) ClientOption {
+	return func(c *Client) { c.logger = &contextLoggerAdapter{l} }
+}
+
+// WithContextLogger injects a logger into the client, so its internals can be
+// recorded.
+func WithContextLogger(l ContextLogger) ClientOption {
 	return func(c *Client) { c.logger = l }
 }
 

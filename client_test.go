@@ -590,9 +590,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 		Region:   aws.String("us-west-2"),
 	})
 	var buf bytes.Buffer
-	logger := &dynamolock.DefaultLogger{
-		Logger: log.New(&buf, "", 0),
-	}
+	logger := log.New(&buf, "", 0)
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -869,7 +867,7 @@ type testLogger struct {
 	t *testing.T
 }
 
-func (t *testLogger) Println(_ context.Context, v ...interface{}) {
+func (t *testLogger) Println(v ...interface{}) {
 	t.t.Helper()
 	t.t.Log(v...)
 }
@@ -947,9 +945,7 @@ func TestHeartbeatError(t *testing.T) {
 	defer func() {
 		t.Log(buf.String())
 	}()
-	logger := &dynamolock.DefaultLogger{
-		Logger: log.New(&buf, "", 0),
-	}
+	logger := log.New(&buf, "", 0)
 
 	heartbeatPeriod := 2 * time.Second
 	c, err := dynamolock.New(svc,
