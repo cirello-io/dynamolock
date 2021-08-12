@@ -58,6 +58,13 @@ func mustNewDynamoDBClient(t *testing.T) *dynamodb.Client {
 		t.Fatal(err)
 	}
 
+	cfg.Credentials = credentials.StaticCredentialsProvider{
+		Value: aws.Credentials{
+			AccessKeyID:     "fakeMyKeyId",
+			SecretAccessKey: "fakeSecretAccessKey",
+		},
+	}
+
 	return dynamodb.NewFromConfig(cfg, func(opts *dynamodb.Options) {
 		opts.Credentials = credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
