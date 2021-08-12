@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
@@ -30,7 +29,7 @@ func TestSessionMonitor(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	svc := mustNewDynamoDBClient(t)
 
 	c, err := New(svc,
 		"locks",
@@ -86,7 +85,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	svc := mustNewDynamoDBClient(t)
 	c, err := New(svc,
 		"locks-monitor",
 		WithLeaseDuration(3*time.Second),
@@ -139,7 +138,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 func TestSessionMonitorFullCycle(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	svc := mustNewDynamoDBClient(t)
 	c, err := New(svc,
 		"locks",
 		WithLeaseDuration(3*time.Second),

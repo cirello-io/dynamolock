@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
@@ -35,7 +34,7 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 			t.Fatal("panic found when closing client without heartbeat")
 		}
 	}()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	svc := mustNewDynamoDBClient(t)
 	c, err := New(svc,
 		"locks",
 		DisableHeartbeat(),
@@ -49,7 +48,8 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 func TestHeartbeatHandover(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+
+	svc := mustNewDynamoDBClient(t)
 	c, err := New(svc,
 		"locks",
 		WithLeaseDuration(3*time.Second),
@@ -140,7 +140,8 @@ func TestHeartbeatHandover(t *testing.T) {
 func TestHeartbeatDataOps(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+
+	svc := mustNewDynamoDBClient(t)
 	newClient := func() (*Client, error) {
 		return New(svc,
 			"locks",

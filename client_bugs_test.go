@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
@@ -31,7 +30,7 @@ func TestIssue56(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	svc := mustNewDynamoDBClient(t)
 	lockClient, err := New(svc,
 		"locksIssue56",
 		WithLeaseDuration(3*time.Second),

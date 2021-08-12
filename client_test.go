@@ -30,6 +30,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -41,14 +42,14 @@ func isDynamoLockAvailable(t *testing.T) {
 	}
 }
 
-func mustNewConfig(t *testing.T) aws.Config {
+func mustNewDynamoDBClient(t *testing.T) *dynamodb.Client {
 	cfg, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion("us-west-2"),
 		config.WithEndpointResolver(
 			aws.EndpointResolverFunc(
 				func(service, region string) (aws.Endpoint, error) {
-					return aws.Endpoint{URL: "http://localhost:8080/"}, nil
+					return aws.Endpoint{URL: "http://localhost:8000/"}, nil
 				},
 			),
 		),
@@ -57,16 +58,24 @@ func mustNewConfig(t *testing.T) aws.Config {
 		t.Fatal(err)
 	}
 
-	return cfg
+	return dynamodb.NewFromConfig(cfg, func(opts *dynamodb.Options) {
+		opts.Credentials = credentials.StaticCredentialsProvider{
+			Value: aws.Credentials{
+				AccessKeyID:     "fakeMyKeyId",
+				SecretAccessKey: "fakeSecretAccessKey",
+			},
+		}
+	})
 }
 
 func TestClientBasicFlow(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
-		"locks",
+	db := mustNewDynamoDBClient(t)
+
+	c, err := New(db,
+		"locks1",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
 		WithOwnerName("TestClientBasicFlow#1"),
@@ -78,7 +87,7 @@ func TestClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable("locks1",
 		WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -124,7 +133,7 @@ func TestClientBasicFlow(t *testing.T) {
 		t.Error("losing information inside lock storage, wanted:", string(data2), " got:", got)
 	}
 
-	c2, err := New(svc,
+	c2, err := New(db,
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -162,9 +171,9 @@ func TestReadLockContent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("standard load", func(t *testing.T) {
-		svc := dynamodb.NewFromConfig(mustNewConfig(t))
-		c, err := New(svc,
-			"locks",
+		db := mustNewDynamoDBClient(t)
+		c, err := New(db,
+			"locks2",
 			WithLeaseDuration(3*time.Second),
 			WithHeartbeatPeriod(1*time.Second),
 			WithOwnerName("TestReadLockContent#1"),
@@ -198,7 +207,7 @@ func TestReadLockContent(t *testing.T) {
 			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 		}
 
-		c2, err := New(svc,
+		c2, err := New(db,
 			"locks",
 			WithLeaseDuration(3*time.Second),
 			WithHeartbeatPeriod(1*time.Second),
@@ -220,8 +229,7 @@ func TestReadLockContent(t *testing.T) {
 		}
 	})
 	t.Run("cached load", func(t *testing.T) {
-		svc := dynamodb.NewFromConfig(mustNewConfig(t))
-		c, err := New(svc,
+		c, err := New(mustNewDynamoDBClient(t),
 			"locks",
 			WithLeaseDuration(3*time.Second),
 			WithHeartbeatPeriod(1*time.Second),
@@ -263,8 +271,9 @@ func TestReadLockContent(t *testing.T) {
 func TestReadLockContentAfterRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	db := mustNewDynamoDBClient(t)
+	c, err := New(db,
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -300,7 +309,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := New(svc,
+	c2, err := New(db,
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -325,8 +334,9 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	db := mustNewDynamoDBClient(t)
+	c, err := New(db,
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -363,7 +373,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := New(svc,
+	c2, err := New(db,
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -388,8 +398,8 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	_, err := New(svc,
+
+	_, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(1*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -402,8 +412,8 @@ func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 func TestFailIfLocked(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -437,8 +447,8 @@ func TestFailIfLocked(t *testing.T) {
 func TestClientWithAdditionalAttributes(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		DisableHeartbeat(),
@@ -539,8 +549,8 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 func TestDeleteLockOnRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -590,10 +600,13 @@ func TestDeleteLockOnRelease(t *testing.T) {
 func TestCustomRefreshPeriod(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	var buf bytes.Buffer
-	logger := log.New(&buf, "", 0)
-	c, err := New(svc,
+
+	var (
+		buf    bytes.Buffer
+		logger = log.New(&buf, "", 0)
+	)
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -629,8 +642,8 @@ func TestCustomRefreshPeriod(t *testing.T) {
 func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		DisableHeartbeat(),
@@ -675,8 +688,8 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 func TestClientClose(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -745,8 +758,8 @@ func TestClientClose(t *testing.T) {
 func TestInvalidReleases(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -809,8 +822,8 @@ func TestInvalidReleases(t *testing.T) {
 func TestClientWithDataAfterRelease(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(1*time.Second),
@@ -865,9 +878,10 @@ func (t *testLogger) Println(v ...interface{}) {
 func TestHeartbeatLoss(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+
 	heartbeatPeriod := 5 * time.Second
-	c, err := New(svc,
+
+	c, err := New(mustNewDynamoDBClient(t),
 		"locks",
 		WithLeaseDuration(1*time.Hour),
 		WithHeartbeatPeriod(heartbeatPeriod),
@@ -919,7 +933,6 @@ func TestHeartbeatLoss(t *testing.T) {
 func TestHeartbeatError(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.NewFromConfig(mustNewConfig(t))
 
 	var buf lockStepBuffer
 	fatal := func(a ...interface{}) {
@@ -932,6 +945,9 @@ func TestHeartbeatError(t *testing.T) {
 	logger := log.New(&buf, "", 0)
 
 	heartbeatPeriod := 2 * time.Second
+
+	svc := mustNewDynamoDBClient(t)
+
 	c, err := New(svc,
 		"locksHBError",
 		WithLeaseDuration(1*time.Hour),
