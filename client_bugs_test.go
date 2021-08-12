@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dynamolock_test
+package dynamolock
 
 import (
 	"errors"
@@ -22,34 +22,32 @@ import (
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestIssue56(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
-	lockClient, err := dynamolock.New(svc,
+
+	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	lockClient, err := New(svc,
 		"locksIssue56",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(100*time.Millisecond),
-		dynamolock.WithOwnerName("TestIssue56"),
-		dynamolock.WithPartitionKeyName("key"),
+		WithLeaseDuration(3*time.Second),
+		WithHeartbeatPeriod(100*time.Millisecond),
+		WithOwnerName("TestIssue56"),
+		WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	lockClient.CreateTable("locksIssue56",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+		WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
+		WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -69,8 +67,8 @@ func TestIssue56(t *testing.T) {
 			for {
 				lock, err := lockClient.AcquireLock(
 					"key",
-					dynamolock.WithAdditionalTimeToWaitForLock(expectedTimeoutMinimumAge),
-					dynamolock.WithRefreshPeriod(100*time.Millisecond),
+					WithAdditionalTimeToWaitForLock(expectedTimeoutMinimumAge),
+					WithRefreshPeriod(100*time.Millisecond),
 				)
 				switch err {
 				case nil:
@@ -78,7 +76,7 @@ func TestIssue56(t *testing.T) {
 					lockClient.ReleaseLock(lock)
 					return
 				default:
-					var errTimeout *dynamolock.TimeoutError
+					var errTimeout *TimeoutError
 					if !errors.As(err, &errTimeout) {
 						t.Error("unexpected error:", err)
 						return

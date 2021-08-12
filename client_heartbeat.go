@@ -21,9 +21,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 // SendHeartbeatOption allows to proceed with Lock content changes in the
@@ -121,7 +121,7 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 
 	lastUpdateOfLock := time.Now()
 
-	_, err := c.dynamoDB.UpdateItemWithContext(ctx, updateItemInput)
+	_, err := c.dynamoDB.UpdateItem(ctx, updateItemInput)
 	if err != nil {
 		err := parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
 		var errNotGranted *LockNotGrantedError

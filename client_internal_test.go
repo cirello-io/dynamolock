@@ -24,23 +24,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 type mockDynamoDBClient struct {
-	dynamodbiface.DynamoDBAPI
+	DynamoDBAPI
 }
 
-func (m *mockDynamoDBClient) PutItemWithContext(ctx context.Context, input *dynamodb.PutItemInput, _ ...request.Option) (*dynamodb.PutItemOutput, error) {
+func (m *mockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	return &dynamodb.PutItemOutput{}, nil
 }
-func (m *mockDynamoDBClient) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, _ ...request.Option) (*dynamodb.GetItemOutput, error) {
+
+func (m *mockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	return &dynamodb.GetItemOutput{}, nil
 }
-func (m *mockDynamoDBClient) UpdateItemWithContext(ctx context.Context, input *dynamodb.UpdateItemInput, _ ...request.Option) (*dynamodb.UpdateItemOutput, error) {
+
+func (m *mockDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
 	return &dynamodb.UpdateItemOutput{}, nil
 }
 
@@ -98,8 +98,8 @@ func TestCloseRace(t *testing.T) {
 
 func TestBadCreateLockItem(t *testing.T) {
 	c := &Client{}
-	_, err := c.createLockItem(getLockOptions{}, map[string]*dynamodb.AttributeValue{
-		attrLeaseDuration: &dynamodb.AttributeValue{S: aws.String("bad duration")},
+	_, err := c.createLockItem(getLockOptions{}, map[string]types.AttributeValue{
+		attrLeaseDuration: &types.AttributeValueMemberS{Value: "bad duration"},
 	})
 	if err == nil {
 		t.Fatal("bad duration should prevent the creation of the lock")

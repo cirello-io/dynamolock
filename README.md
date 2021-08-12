@@ -14,7 +14,8 @@ and coarse-grained locking as the lock keys can be any arbitrary string, up to a
 certain length. Please create issues in the GitHub repository with questions,
 pull request are very much welcome.
 
-It is a port in Go of Amazon's original [dynamodb-lock-client](https://github.com/awslabs/dynamodb-lock-client).
+It is a port in Go of Amazon's original [dynamodb-lock-client](https://github.com/awslabs/dynamodb-lock-client)
+using [aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2).
 
 ## Use cases
 A common use case for this lock client is:
@@ -49,22 +50,29 @@ The package level documentation comment has an example of how to use this
 package. Here is some example code to get you started:
 
 First you have to create the table and wait for DynamoDB to complete:
+
 ```Go
 package main
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func main() {
-	svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
-		Region: aws.String("us-west-2"),
-	})))
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-west-2"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	svc := dynamodb.NewFromConfig(cfg)
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -76,8 +84,8 @@ func main() {
 	defer c.Close()
 
 	log.Println("ensuring table exists")
-	_, err := c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+	_, err = c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
@@ -96,18 +104,23 @@ to run:
 package main
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 func main() {
-	svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
-		Region: aws.String("us-west-2"),
-	})))
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-west-2"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	
+	svc := dynamodb.NewFromConfig(cfg)
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -179,3 +192,4 @@ perform all of the following actions on the DynamoDB table containing the locks:
 * `PutItem`
 * `UpdateItem`
 * `DeleteItem`
+* `CreateTable`

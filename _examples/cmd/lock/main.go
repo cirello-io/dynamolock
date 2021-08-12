@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/smithy-go"
 	"github.com/urfave/cli"
 )
 
@@ -70,12 +71,12 @@ func main() {
 }
 
 func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
-	session, err := session.NewSession()
+	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("cannot create AWS session: %w", err)
 	}
 	client, err := dynamolock.New(
-		dynamodb.New(session),
+		dynamodb.NewFromConfig(cfg),
 		tableName,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
@@ -89,18 +90,18 @@ func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
 
 func createTable(client *dynamolock.Client, tableName string) error {
 	_, err := client.CreateTable(tableName,
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
-		var awsErr awserr.RequestFailure
-		isTableAlreadyCreatedError := errors.As(err, &awsErr) && awsErr.StatusCode() == 400 && awsErr.Message() == "Cannot create preexisting table"
-		if !isTableAlreadyCreatedError {
-			return fmt.Errorf("cannot create dynamolock client table: %w", err)
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			return fmt.Errorf("creating table failed; code: %s, message: %s, fault: %s", apiErr.ErrorCode(), apiErr.ErrorMessage(), apiErr.ErrorFault())
 		}
+		return fmt.Errorf("creating table failed: %w", err)
 	}
 	return nil
 }

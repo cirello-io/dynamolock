@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // Lock item properly speaking.
@@ -40,7 +40,7 @@ type Lock struct {
 	lookupTime           time.Time
 	recordVersionNumber  string
 	leaseDuration        time.Duration
-	additionalAttributes map[string]*dynamodb.AttributeValue
+	additionalAttributes map[string]types.AttributeValue
 }
 
 // Data returns the content of the lock, if any is available.
@@ -99,13 +99,14 @@ func (l *Lock) OwnerName() string {
 	if l == nil {
 		return ""
 	}
+
 	return l.ownerName
 }
 
 // AdditionalAttributes returns the lock's additional data stored during
 // acquisition.
-func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
-	addAttr := make(map[string]*dynamodb.AttributeValue)
+func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {
+	addAttr := make(map[string]types.AttributeValue)
 	if l != nil {
 		for k, v := range l.additionalAttributes {
 			addAttr[k] = v

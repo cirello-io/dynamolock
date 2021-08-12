@@ -14,31 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dynamolock_test
+package dynamolock
 
 import (
 	"sync"
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestSessionMonitor(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
-	c, err := dynamolock.New(svc,
+
+	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+
+	c, err := New(svc,
 		"locks",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithOwnerName("TestSessionMonitor#1"),
-		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
+		WithLeaseDuration(3*time.Second),
+		WithOwnerName("TestSessionMonitor#1"),
+		DisableHeartbeat(),
+		WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -46,11 +45,11 @@ func TestSessionMonitor(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+		WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
+		WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -59,9 +58,9 @@ func TestSessionMonitor(t *testing.T) {
 	)
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("uhura",
-		dynamolock.WithData(data),
-		dynamolock.ReplaceData(),
-		dynamolock.WithSessionMonitor(500*time.Millisecond, func() {
+		WithData(data),
+		ReplaceData(),
+		WithSessionMonitor(500*time.Millisecond, func() {
 			mu.Lock()
 			sessionMonitorWasTriggered = true
 			mu.Unlock()
@@ -86,16 +85,14 @@ func TestSessionMonitor(t *testing.T) {
 func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
-	c, err := dynamolock.New(svc,
+
+	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	c, err := New(svc,
 		"locks-monitor",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
-		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
+		WithLeaseDuration(3*time.Second),
+		WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
+		DisableHeartbeat(),
+		WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -103,11 +100,11 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks-monitor",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+		WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
+		WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -116,9 +113,9 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	)
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("scotty",
-		dynamolock.WithData(data),
-		dynamolock.ReplaceData(),
-		dynamolock.WithSessionMonitor(50*time.Millisecond, func() {
+		WithData(data),
+		ReplaceData(),
+		WithSessionMonitor(50*time.Millisecond, func() {
 			mu.Lock()
 			sessionMonitorWasTriggered = true
 			mu.Unlock()
@@ -142,16 +139,13 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 func TestSessionMonitorFullCycle(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
-	c, err := dynamolock.New(svc,
+	svc := dynamodb.NewFromConfig(mustNewConfig(t))
+	c, err := New(svc,
 		"locks",
-		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithOwnerName("TestSessionMonitorFullCycle#1"),
-		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
+		WithLeaseDuration(3*time.Second),
+		WithOwnerName("TestSessionMonitorFullCycle#1"),
+		DisableHeartbeat(),
+		WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -159,11 +153,11 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 
 	t.Log("ensuring table exists")
 	c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+		WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
+		WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -171,7 +165,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		sessionMonitorWasTriggered bool
 	)
 	lockedItem, err := c.AcquireLock("sessionMonitor",
-		dynamolock.WithSessionMonitor(1*time.Second, func() {
+		WithSessionMonitor(1*time.Second, func() {
 			mu.Lock()
 			sessionMonitorWasTriggered = true
 			mu.Unlock()
@@ -196,7 +190,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Second)
-	if ok, err := lockedItem.IsAlmostExpired(); err != dynamolock.ErrLockAlreadyReleased {
+	if ok, err := lockedItem.IsAlmostExpired(); err != ErrLockAlreadyReleased {
 		t.Error("lockedItem should be already expired:", ok, err)
 	}
 }
