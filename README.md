@@ -6,6 +6,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cirello-io/dynamolock)](https://goreportcard.com/report/github.com/cirello-io/dynamolock)
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
 
+** dynamolock v1 is now maintenance only as Amazon promoted their Go SDK v2 to GA, please use the dynamolock/v2. **
+
 This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
 
 The dymanoDB Lock Client for Go is a general purpose distributed locking library
