@@ -1,6 +1,7 @@
 # DynamoDB Lock Client for Go v2
 
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
+[![Build status](https://badge.buildkite.com/503d4c5c2e58c5d5254e73ce7f532f054fad16adc4530a24b5.svg)](https://buildkite.com/cirello-io/dynamolock)
 
 This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
 
