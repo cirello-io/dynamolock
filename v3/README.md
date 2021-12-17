@@ -1,7 +1,6 @@
 # DynamoDB Lock Client for Go v3
 
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
-[![Build status](https://badge.buildkite.com/503d4c5c2e58c5d5254e73ce7f532f054fad16adc4530a24b5.svg)](https://buildkite.com/cirello-io/dynamolock)
 
 This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
 
@@ -31,7 +30,7 @@ To use the DynamoDB Lock Client for Go, you must make it sure it is present in
 `$GOPATH` or in your vendor directory.
 
 ```sh
-$ go get -u cirello.io/dynamolock/v2
+$ go get -u cirello.io/dynamolock/v3
 ```
 
 This package has the `go.mod` file to be used with Go's module system.
@@ -51,7 +50,7 @@ package main
 import (
 	"log"
 
-	"cirello.io/dynamolock/v2"
+	"cirello.io/dynamolock/v3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -96,7 +95,7 @@ package main
 import (
 	"log"
 
-	"cirello.io/dynamolock/v2"
+	"cirello.io/dynamolock/v3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"

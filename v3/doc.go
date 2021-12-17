@@ -26,7 +26,7 @@ limitations under the License.
 //	import (
 //		"log"
 //
-//		"cirello.io/dynamolock/v2"
+//		"cirello.io/dynamolock/v3"
 //		"github.com/aws/aws-sdk-go-v2/aws"
 //		"github.com/aws/aws-sdk-go-v2/config"
 //		"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -87,4 +87,4 @@ limitations under the License.
 // This package is covered by this SLA:
 // https://github.com/cirello-io/public/blob/master/SLA.md
 //
-package dynamolock // import "cirello.io/dynamolock/v2"
+package dynamolock // import "cirello.io/dynamolock/v3"

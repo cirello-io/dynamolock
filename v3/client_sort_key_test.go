@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock/v2"
+	"cirello.io/dynamolock/v3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
