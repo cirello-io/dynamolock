@@ -50,7 +50,6 @@ func TestSessionMonitor(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -107,7 +106,6 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	var (
@@ -163,7 +161,6 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	var (

@@ -712,7 +712,7 @@ func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, o
 	createTableOptions := &createDynamoDBTableOptions{
 		tableName:        tableName,
 		billingMode:      "PAY_PER_REQUEST",
-		partitionKeyName: defaultPartitionKeyName,
+		partitionKeyName: c.partitionKeyName,
 	}
 	for _, opt := range opts {
 		opt(createTableOptions)
@@ -725,14 +725,6 @@ func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, o
 // client-compatible and specify optional parameters such as the desired
 // throughput and whether or not to use a sort key.
 type CreateTableOption func(*createDynamoDBTableOptions)
-
-// WithCustomPartitionKeyName changes the partition key name of the table. If
-// not specified, the default "key" will be used.
-func WithCustomPartitionKeyName(s string) CreateTableOption {
-	return func(opt *createDynamoDBTableOptions) {
-		opt.partitionKeyName = s
-	}
-}
 
 // WithTags changes the tags of the table. If not specified, the table will have empty tags.
 func WithTags(tags []*dynamodb.Tag) CreateTableOption {

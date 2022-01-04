@@ -73,7 +73,6 @@ func TestHeartbeatHandover(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	data := []byte("some content a")
@@ -170,7 +169,6 @@ func TestHeartbeatDataOps(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	t.Run("delete data on heartbeat", func(t *testing.T) {

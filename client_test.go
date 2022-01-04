@@ -76,7 +76,6 @@ func TestClientBasicFlow(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	data := []byte("some content a")
@@ -177,7 +176,6 @@ func TestReadLockContent(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
 			}),
-			dynamolock.WithCustomPartitionKeyName("key"),
 		)
 
 		data := []byte("some content a")
@@ -238,7 +236,6 @@ func TestReadLockContent(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
 			}),
-			dynamolock.WithCustomPartitionKeyName("key"),
 		)
 
 		data := []byte("hello janice")
@@ -284,7 +281,6 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	data := []byte("some content for scotty")
@@ -349,7 +345,6 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	data := []byte("some content for uhura")
@@ -431,7 +426,6 @@ func TestFailIfLocked(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	_, err = c.AcquireLock("failIfLocked")
@@ -469,7 +463,6 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	t.Run("good attributes", func(t *testing.T) {
@@ -552,7 +545,6 @@ func TestDeleteLockOnRelease(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	const lockName = "delete-lock-on-release"
@@ -609,7 +601,6 @@ func TestCustomRefreshPeriod(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	lockedItem, err := c.AcquireLock("custom-refresh-period")
@@ -649,7 +640,6 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	t.Log("acquire lock")
@@ -698,7 +688,6 @@ func TestClientClose(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	t.Log("acquiring locks")
@@ -771,7 +760,6 @@ func TestInvalidReleases(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	t.Run("release nil lock", func(t *testing.T) {
@@ -838,7 +826,6 @@ func TestClientWithDataAfterRelease(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	const lockName = "lockNoData"
@@ -898,7 +885,6 @@ func TestHeartbeatLoss(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	const lockName = "heartbeatLoss"
@@ -966,7 +952,6 @@ func TestHeartbeatError(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
 		fatal("cannot create table")
