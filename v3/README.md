@@ -78,7 +78,6 @@ func main() {
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
 		log.Fatal(err)

@@ -46,7 +46,6 @@ func TestIssue56(t *testing.T) {
 			ReadCapacityUnits:  aws.Int64(1000),
 			WriteCapacityUnits: aws.Int64(1000),
 		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
 	var (
