@@ -60,6 +60,5 @@ type createDynamoDBTableOptions struct {
 	provisionedThroughput *types.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string
-	sortKeyName           string
 	tags                  []types.Tag
 }

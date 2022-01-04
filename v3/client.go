@@ -59,8 +59,6 @@ type Client struct {
 
 	tableName        string
 	partitionKeyName string
-	sortKeyName      string
-	sortKeyValue     string
 
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
@@ -120,15 +118,6 @@ type ClientOption func(*Client)
 // WithPartitionKeyName defines the key name used for asserting keys uniqueness.
 func WithPartitionKeyName(s string) ClientOption {
 	return func(c *Client) { c.partitionKeyName = s }
-}
-
-// WithSortKey defines the sort key name and value to use for asserting keys uniqueness. If not set,
-// the sort key will not be used in DynamoDB calls.
-func WithSortKey(name string, value string) ClientOption {
-	return func(c *Client) {
-		c.sortKeyName = name
-		c.sortKeyValue = value
-	}
 }
 
 // WithOwnerName changes the owner linked to the client, and by consequence to
@@ -379,9 +368,6 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 		item[k] = v
 	}
 	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKeyName)
-	if c.sortKeyName != "" {
-		item[c.sortKeyName] = stringAttrValue(c.sortKeyValue)
-	}
 	item[attrOwnerName] = stringAttrValue(c.ownerName)
 	item[attrLeaseDuration] = stringAttrValue(c.leaseDuration.String())
 
@@ -588,9 +574,6 @@ func (c *Client) readFromDynamoDB(ctx context.Context, key string) (*dynamodb.Ge
 	dynamoDBKey := map[string]types.AttributeValue{
 		c.partitionKeyName: stringAttrValue(key),
 	}
-	if c.sortKeyName != "" {
-		dynamoDBKey[c.sortKeyName] = stringAttrValue(c.sortKeyValue)
-	}
 	return c.dynamoDB.GetItem(ctx, &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
 		TableName:      aws.String(c.tableName),
@@ -718,14 +701,6 @@ func WithCustomPartitionKeyName(s string) CreateTableOption {
 	}
 }
 
-// WithSortKeyName creates the table with a sort key. If not specified, the
-// table will not have a sort key.
-func WithSortKeyName(s string) CreateTableOption {
-	return func(opt *createDynamoDBTableOptions) {
-		opt.sortKeyName = s
-	}
-}
-
 // WithTags changes the tags of the table. If not specified, the table will have empty tags.
 func WithTags(tags []types.Tag) CreateTableOption {
 	return func(opt *createDynamoDBTableOptions) {
@@ -749,24 +724,12 @@ func (c *Client) createTable(ctx context.Context, opt *createDynamoDBTableOption
 			KeyType:       types.KeyTypeHash,
 		},
 	}
-	if opt.sortKeyName != "" {
-		keySchema = append(keySchema, types.KeySchemaElement{
-			AttributeName: aws.String(opt.sortKeyName),
-			KeyType:       types.KeyTypeRange,
-		})
-	}
 
 	attributeDefinitions := []types.AttributeDefinition{
 		{
 			AttributeName: aws.String(opt.partitionKeyName),
 			AttributeType: types.ScalarAttributeTypeS,
 		},
-	}
-	if opt.sortKeyName != "" {
-		attributeDefinitions = append(attributeDefinitions, types.AttributeDefinition{
-			AttributeName: aws.String(opt.sortKeyName),
-			AttributeType: types.ScalarAttributeTypeS,
-		})
 	}
 
 	createTableInput := &dynamodb.CreateTableInput{
@@ -925,9 +888,6 @@ func (c *Client) releaseAllLocks(ctx context.Context) error {
 func (c *Client) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
 	key := map[string]types.AttributeValue{
 		c.partitionKeyName: stringAttrValue(lockItem.partitionKey),
-	}
-	if c.sortKeyName != "" {
-		key[c.sortKeyName] = stringAttrValue(c.sortKeyValue)
 	}
 	return key
 }
