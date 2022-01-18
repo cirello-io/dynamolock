@@ -28,7 +28,7 @@ import (
 type Lock struct {
 	semaphore sync.Mutex
 
-	client       *Client
+	client       *internalClient
 	partitionKey string
 
 	data                []byte
