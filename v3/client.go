@@ -53,7 +53,6 @@ var (
 
 var isReleasedAttrVal = expression.Value("1")
 
-// Client is a dynamoDB based distributed lock client.
 type internalClient struct {
 	dynamoDB DynamoDBClient
 
@@ -75,6 +74,7 @@ type internalClient struct {
 	closed    bool
 }
 
+// Client is a dynamoDB based distributed lock client.
 type Client struct{ *internalClient }
 
 const (
