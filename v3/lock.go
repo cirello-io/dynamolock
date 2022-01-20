@@ -18,6 +18,7 @@ package dynamolock
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type Lock struct {
 
 	client       *internalClient
 	partitionKey string
+	sortKey      string
 
 	data                []byte
 	ownerName           string
@@ -63,8 +65,22 @@ func (l *Lock) Close() error {
 	return ErrCannotReleaseNullLock
 }
 
+func uniqueIdentifierForKeys(partitionKey, sortKey string) string {
+	if sortKey == "" {
+		return partitionKey
+	}
+
+	// As key names can be any arbitrary string, there's no foolproof way to simply concatenate them without
+	// _some_ possibility of collision. For example, if we did `%s-%s`, we would end up with collisions with
+	// (albeit unlikely) keys such as (partitionKey="foo-", sortKey="bar") and (partitionKey="foo", sortKey="-bar"),
+	// as both would yield "foo--bar". So to guarantee we have no possibility of collision, we also encode
+	// the length of the `partitionKey` at the beginning of the string, which would disambiguate them as
+	// "4-foo--bar" (for a partitionKey="foo-", sortKey="bar") and "3-foo--bar" for the other case.
+	return fmt.Sprintf("%d-%s-%s", len(partitionKey), partitionKey, sortKey)
+}
+
 func (l *Lock) uniqueIdentifier() string {
-	return l.partitionKey
+	return uniqueIdentifierForKeys(l.partitionKey, l.sortKey)
 }
 
 // IsExpired returns if the lock is expired, released, or neither.

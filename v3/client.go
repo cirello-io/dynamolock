@@ -58,6 +58,7 @@ type internalClient struct {
 
 	tableName        string
 	partitionKeyName string
+	sortKeyName      string
 
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
@@ -77,17 +78,21 @@ type internalClient struct {
 // Client is a dynamoDB based distributed lock client.
 type Client struct{ *internalClient }
 
+// ClientWithSortKey is a dynamoDB based distributed lock client, but it has a sort key.
+type ClientWithSortKey struct{ *internalClient }
+
 const (
 	defaultPartitionKeyName = "key"
 	defaultLeaseDuration    = 20 * time.Second
 	defaultHeartbeatPeriod  = 5 * time.Second
 )
 
-func newInternal(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*internalClient, error) {
+func newInternal(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts ...ClientOption) (*internalClient, error) {
 	c := &internalClient{
 		dynamoDB:         dynamoDB,
-		tableName:        tableName,
+		tableName:        tableName + "A",
 		partitionKeyName: defaultPartitionKeyName,
+		sortKeyName:      sortKeyName,
 		leaseDuration:    defaultLeaseDuration,
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),
@@ -115,13 +120,28 @@ func newInternal(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption
 
 // New creates a new dynamoDB based distributed lock client.
 func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Client, error) {
-	internalClient, err := newInternal(dynamoDB, tableName, opts...)
+	internalClient, err := newInternal(dynamoDB, tableName, "", opts...)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{internalClient}, nil
+}
+
+// NewWithSortKey creates a new dynamoDB based distributed lock client with a required sort key.
+func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts ...ClientOption) (*ClientWithSortKey, error) {
+	if sortKeyName == "" {
+		return nil, errors.New("cannot have an empty sortKeyName; if no sort key is desired, use `Client`")
+	}
+
+	internalClient, err := newInternal(dynamoDB, tableName, sortKeyName, opts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClientWithSortKey{internalClient}, nil
 }
 
 // ClientOption reconfigure the lock client creation.
@@ -268,19 +288,30 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 	}
 }
 
-// AcquireLockWithContext holds the defined lock. The given context is passed
-// down to the underlying dynamoDB call.
-func (c *internalClient) AcquireLockWithContext(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
+func (c *internalClient) acquireLockWithContext(ctx context.Context, partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
 	req := &acquireLockOptions{
-		partitionKey: key,
+		partitionKey: partitionKey,
+		sortKey:      sortKey,
 	}
 	for _, opt := range opts {
 		opt(req)
 	}
 	return c.acquireLock(ctx, req)
+}
+
+// AcquireLockWithContext holds the defined lock. The given context is passed
+// down to the underlying dynamoDB call.
+func (c *Client) AcquireLockWithContext(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.acquireLockWithContext(ctx, partitionKey, "", opts...)
+}
+
+// AcquireLockWithContext holds the defined lock. The given context is passed
+// down to the underlying dynamoDB call.
+func (c *ClientWithSortKey) AcquireLockWithContext(ctx context.Context, partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.acquireLockWithContext(ctx, partitionKey, sortKey, opts...)
 }
 
 func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOptions) (*Lock, error) {
@@ -303,6 +334,8 @@ func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOption
 		return false
 	}
 
+	// TODO: do we want this to also check for `sortKeyName`? And do we want to have another `if` for checking
+	// if `c.sortKeyName` contains any of the other attributes?
 	if contains(c.partitionKeyName, attrOwnerName, attrLeaseDuration,
 		attrRecordVersionNumber, attrData) {
 		return nil, fmt.Errorf("additional attribute cannot be one of the following types: %s, %s, %s, %s, %s",
@@ -310,7 +343,8 @@ func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOption
 	}
 
 	getLockOptions := getLockOptions{
-		partitionKeyName:     opt.partitionKey,
+		partitionKey:         opt.partitionKey,
+		sortKey:              opt.sortKey,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,
 		sessionMonitor:       opt.sessionMonitor,
 		start:                time.Now(),
@@ -347,8 +381,10 @@ func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOption
 }
 
 func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockOptions) (*Lock, error) {
-	c.logger.Info(ctx, "Call GetItem to see if the lock for ",
-		c.partitionKeyName, " =", getLockOptions.partitionKeyName, " exists in the table")
+	c.logger.Info(ctx, "Call GetItem to see if the lock for (",
+		c.partitionKeyName, c.sortKeyName, "=", getLockOptions.partitionKey, getLockOptions.sortKey,
+		") exists in the table")
+
 	existingLock, err := c.getLockFromDynamoDB(ctx, *getLockOptions)
 	if err != nil {
 		return nil, err
@@ -379,7 +415,8 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 	for k, v := range getLockOptions.additionalAttributes {
 		item[k] = v
 	}
-	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKeyName)
+	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKey)
+	// TODO: insert `c.sortKeyName` into `item`.
 	item[attrOwnerName] = stringAttrValue(c.ownerName)
 	item[attrLeaseDuration] = stringAttrValue(c.leaseDuration.String())
 
@@ -395,7 +432,8 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 		l, err := c.upsertAndMonitorNewOrReleasedLock(
 			ctx,
 			getLockOptions.additionalAttributes,
-			getLockOptions.partitionKeyName,
+			getLockOptions.partitionKey,
+			getLockOptions.sortKey,
 			getLockOptions.deleteLockOnRelease,
 			newLockData,
 			item,
@@ -436,7 +474,8 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 		l, err := c.upsertAndMonitorExpiredLock(
 			ctx,
 			getLockOptions.additionalAttributes,
-			getLockOptions.partitionKeyName,
+			getLockOptions.partitionKey,
+			getLockOptions.sortKey,
 			getLockOptions.deleteLockOnRelease,
 			existingLock, newLockData, item,
 			recordVersionNumber,
@@ -468,7 +507,8 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 func (c *internalClient) upsertAndMonitorExpiredLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
+	sortKey string,
 	deleteLockOnRelease bool,
 	existingLock *Lock,
 	newLockData []byte,
@@ -476,6 +516,7 @@ func (c *internalClient) upsertAndMonitorExpiredLock(
 	recordVersionNumber string,
 	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
+	// TODO: add `sortKey` to the condition if `c.sortKeyName` is non-empty.
 	cond := expression.And(
 		expression.AttributeExists(expression.Name(c.partitionKeyName)),
 		expression.Equal(rvnAttr, expression.Value(existingLock.recordVersionNumber)),
@@ -489,23 +530,25 @@ func (c *internalClient) upsertAndMonitorExpiredLock(
 		ExpressionAttributeValues: putItemExpr.Values(),
 	}
 
-	c.logger.Info(ctx, "Acquiring an existing lock whose revisionVersionNumber did not change for ",
-		c.partitionKeyName, " partitionKeyName=", key)
+	c.logger.Info(ctx, "Acquiring an existing lock whose revisionVersionNumber did not change for (",
+		c.partitionKeyName, c.sortKeyName, "=", partitionKey, sortKey, ")")
 	return c.putLockItemAndStartSessionMonitor(
-		ctx, additionalAttributes, key, deleteLockOnRelease, newLockData,
+		ctx, additionalAttributes, partitionKey, sortKey, deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, putItemRequest)
 }
 
 func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
+	sortKey string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	item map[string]types.AttributeValue,
 	recordVersionNumber string,
 	sessionMonitor *sessionMonitor,
 ) (*Lock, error) {
+	// TODO: add `sortKey` to the condition if `c.sortKeyName` is non-empty.
 	cond := expression.Or(
 		expression.AttributeNotExists(expression.Name(c.partitionKeyName)),
 		expression.And(
@@ -527,8 +570,9 @@ func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 	// lock into DynamoDB should err on the side of thinking the lock will
 	// expire sooner than it actually will, so they start counting towards
 	// its expiration before the Put succeeds
-	c.logger.Info(ctx, "Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", key)
-	return c.putLockItemAndStartSessionMonitor(ctx, additionalAttributes, key,
+	c.logger.Info(ctx, "Acquiring a new lock or an existing yet released lock on (",
+		c.partitionKeyName, c.sortKeyName, "=", partitionKey, sortKey, ")")
+	return c.putLockItemAndStartSessionMonitor(ctx, additionalAttributes, partitionKey, sortKey,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, req)
 }
@@ -536,7 +580,8 @@ func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 func (c *internalClient) putLockItemAndStartSessionMonitor(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
+	sortKey string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	recordVersionNumber string,
@@ -552,7 +597,8 @@ func (c *internalClient) putLockItemAndStartSessionMonitor(
 
 	lockItem := &Lock{
 		client:               c,
-		partitionKey:         key,
+		partitionKey:         partitionKey,
+		sortKey:              sortKey,
 		data:                 newLockData,
 		deleteLockOnRelease:  deleteLockOnRelease,
 		ownerName:            c.ownerName,
@@ -569,7 +615,7 @@ func (c *internalClient) putLockItemAndStartSessionMonitor(
 }
 
 func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOptions) (*Lock, error) {
-	res, err := c.readFromDynamoDB(ctx, opt.partitionKeyName)
+	res, err := c.readFromDynamoDB(ctx, opt.partitionKey, opt.sortKey)
 	if err != nil {
 		return nil, err
 	}
@@ -582,10 +628,12 @@ func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOpt
 	return c.createLockItem(opt, item)
 }
 
-func (c *internalClient) readFromDynamoDB(ctx context.Context, key string) (*dynamodb.GetItemOutput, error) {
+func (c *internalClient) readFromDynamoDB(ctx context.Context, partitionKey, sortKey string) (*dynamodb.GetItemOutput, error) {
+	// TODO: add `sortKey` to the map if `c.sortKeyName` is non-empty.
 	dynamoDBKey := map[string]types.AttributeValue{
-		c.partitionKeyName: stringAttrValue(key),
+		c.partitionKeyName: stringAttrValue(partitionKey),
 	}
+
 	return c.dynamoDB.GetItem(ctx, &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
 		TableName:      aws.String(c.tableName),
@@ -613,6 +661,7 @@ func (c *internalClient) createLockItem(opt getLockOptions, item map[string]type
 	_, isReleased := item[attrIsReleased]
 	delete(item, attrIsReleased)
 	delete(item, c.partitionKeyName)
+	delete(item, c.sortKeyName)
 
 	// The person retrieving the lock in DynamoDB should err on the side of
 	// not expiring the lock, so they don't start counting until after the
@@ -630,7 +679,8 @@ func (c *internalClient) createLockItem(opt getLockOptions, item map[string]type
 
 	lockItem := &Lock{
 		client:               c,
-		partitionKey:         opt.partitionKeyName,
+		partitionKey:         opt.partitionKey,
+		sortKey:              opt.sortKey,
 		data:                 data,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,
 		ownerName:            ownerName,
@@ -668,7 +718,7 @@ func (c *internalClient) heartbeat(ctx context.Context) {
 		c.locks.Range(func(_ interface{}, value interface{}) bool {
 			lockItem := value.(*Lock)
 			if err := c.SendHeartbeat(lockItem); err != nil {
-				c.logger.Error(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
+				c.logger.Error(ctx, "error sending heartbeat to (", lockItem.partitionKey, lockItem.sortKey, "):", err)
 			}
 			return true
 		})
@@ -689,9 +739,10 @@ func (c *internalClient) CreateTableWithContext(ctx context.Context, tableName s
 		return nil, ErrClientClosed
 	}
 	createTableOptions := &createDynamoDBTableOptions{
-		tableName:        tableName,
+		tableName:        tableName + "A",
 		billingMode:      "PAY_PER_REQUEST",
 		partitionKeyName: c.partitionKeyName,
+		sortKeyName:      c.sortKeyName,
 	}
 	for _, opt := range opts {
 		opt(createTableOptions)
@@ -722,6 +773,7 @@ func WithProvisionedThroughput(provisionedThroughput *types.ProvisionedThroughpu
 }
 
 func (c *internalClient) createTable(ctx context.Context, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
+	// TODO: add `opt.sortKeyName` to `keySchema` and `attributeDefinitions` if `c.sortKeyName` is nonempty
 	keySchema := []types.KeySchemaElement{
 		{
 			AttributeName: aws.String(opt.partitionKeyName),
@@ -789,7 +841,8 @@ func WithDataAfterRelease(data []byte) ReleaseLockOption {
 // during the act of releasing a lock.
 type ReleaseLockOption func(*releaseLockOptions)
 
-func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string) expression.ConditionBuilder {
+func ownershipLockCondition(partitionKeyName, sortKeyName, recordVersionNumber, ownerName string) expression.ConditionBuilder {
+	// TODO: add `sortKeyName` to the condition if its nonempty
 	cond := expression.And(
 		expression.And(
 			expression.AttributeExists(expression.Name(partitionKeyName)),
@@ -828,7 +881,7 @@ func (c *internalClient) releaseLock(ctx context.Context, lockItem *Lock, opts .
 	c.locks.Delete(lockItem.uniqueIdentifier())
 
 	key := c.getItemKeys(lockItem)
-	ownershipLockCond := ownershipLockCondition(c.partitionKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
+	ownershipLockCond := ownershipLockCondition(c.partitionKeyName, c.sortKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
 	if deleteLock {
 		err := c.deleteLock(ctx, ownershipLockCond, key)
 		if err != nil {
@@ -890,22 +943,14 @@ func (c *internalClient) releaseAllLocks(ctx context.Context) error {
 }
 
 func (c *internalClient) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
+	// TODO: add `lockItem.sortKey` to the map if `c.sortKeyName` is nonempty.
 	key := map[string]types.AttributeValue{
 		c.partitionKeyName: stringAttrValue(lockItem.partitionKey),
 	}
 	return key
 }
 
-// GetWithContext finds out who owns the given lock, but does not acquire the
-// lock. It returns the metadata currently associated with the given lock. If
-// the client currently has the lock, it will return the lock, and operations
-// such as releaseLock will work. However, if the client does not have the lock,
-// then operations like releaseLock will not work (after calling GetWithContext,
-// the caller should check lockItem.isExpired() to figure out if it currently
-// has the lock.) If the context is canceled, it is going to return the context
-// error on local cache hit. The given context is passed down to the underlying
-// dynamoDB call.
-func (c *internalClient) GetWithContext(ctx context.Context, key string) (*Lock, error) {
+func (c *internalClient) getWithContext(ctx context.Context, partitionKey, sortKey string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -915,9 +960,11 @@ func (c *internalClient) GetWithContext(ctx context.Context, key string) (*Lock,
 	}
 
 	getLockOption := getLockOptions{
-		partitionKeyName: key,
+		partitionKey: partitionKey,
+		sortKey:      sortKey,
 	}
-	keyName := getLockOption.partitionKeyName
+
+	keyName := uniqueIdentifierForKeys(getLockOption.partitionKey, getLockOption.sortKey)
 	v, ok := c.locks.Load(keyName)
 	if ok {
 		return v.(*Lock), nil
@@ -934,6 +981,32 @@ func (c *internalClient) GetWithContext(ctx context.Context, key string) (*Lock,
 
 	lockItem.updateRVN("", time.Time{}, lockItem.leaseDuration)
 	return lockItem, nil
+}
+
+// GetWithContext finds out who owns the given lock, but does not acquire the
+// lock. It returns the metadata currently associated with the given lock. If
+// the client currently has the lock, it will return the lock, and operations
+// such as releaseLock will work. However, if the client does not have the lock,
+// then operations like releaseLock will not work (after calling GetWithContext,
+// the caller should check lockItem.isExpired() to figure out if it currently
+// has the lock.) If the context is canceled, it is going to return the context
+// error on local cache hit. The given context is passed down to the underlying
+// dynamoDB call.
+func (c *Client) GetWithContext(ctx context.Context, partitionKey string) (*Lock, error) {
+	return c.getWithContext(ctx, partitionKey, "")
+}
+
+// GetWithContext finds out who owns the given lock, but does not acquire the
+// lock. It returns the metadata currently associated with the given lock. If
+// the client currently has the lock, it will return the lock, and operations
+// such as releaseLock will work. However, if the client does not have the lock,
+// then operations like releaseLock will not work (after calling GetWithContext,
+// the caller should check lockItem.isExpired() to figure out if it currently
+// has the lock.) If the context is canceled, it is going to return the context
+// error on local cache hit. The given context is passed down to the underlying
+// dynamoDB call.
+func (c *ClientWithSortKey) GetWithContext(ctx context.Context, partitionKey, sortKey string) (*Lock, error) {
+	return c.getWithContext(ctx, partitionKey, sortKey)
 }
 
 // ErrClientClosed reports the client cannot be used because it is already
@@ -1048,13 +1121,29 @@ type DynamoDBClient interface {
 // operations like releaseLock will not work (after calling Get, the caller
 // should check lockItem.isExpired() to figure out if it currently has the
 // lock.)
-func (c *internalClient) Get(key string) (*Lock, error) {
-	return c.GetWithContext(context.Background(), key)
+func (c *Client) Get(partitionKey string) (*Lock, error) {
+	return c.GetWithContext(context.Background(), partitionKey)
+}
+
+// Get finds out who owns the given lock, but does not acquire the lock. It
+// returns the metadata currently associated with the given lock. If the client
+// currently has the lock, it will return the lock, and operations such as
+// releaseLock will work. However, if the client does not have the lock, then
+// operations like releaseLock will not work (after calling Get, the caller
+// should check lockItem.isExpired() to figure out if it currently has the
+// lock.)
+func (c *ClientWithSortKey) Get(partitionKey, sortKey string) (*Lock, error) {
+	return c.GetWithContext(context.Background(), partitionKey, sortKey)
 }
 
 // AcquireLock holds the defined lock.
-func (c *internalClient) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.AcquireLockWithContext(context.Background(), key, opts...)
+func (c *Client) AcquireLock(partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.AcquireLockWithContext(context.Background(), partitionKey, opts...)
+}
+
+// AcquireLock holds the defined lock.
+func (c *ClientWithSortKey) AcquireLock(partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.AcquireLockWithContext(context.Background(), partitionKey, sortKey, opts...)
 }
 
 // ReleaseLock releases the given lock if the current user still has it,

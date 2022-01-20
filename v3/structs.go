@@ -24,6 +24,7 @@ import (
 
 type acquireLockOptions struct {
 	partitionKey                string
+	sortKey                     string
 	data                        []byte
 	replaceData                 bool
 	deleteLockOnRelease         bool
@@ -35,7 +36,8 @@ type acquireLockOptions struct {
 }
 
 type getLockOptions struct {
-	partitionKeyName                  string
+	partitionKey                      string
+	sortKey                           string
 	deleteLockOnRelease               bool
 	millisecondsToWait                time.Duration
 	refreshPeriodDuration             time.Duration
@@ -60,5 +62,6 @@ type createDynamoDBTableOptions struct {
 	provisionedThroughput *types.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string
+	sortKeyName           string
 	tags                  []types.Tag
 }

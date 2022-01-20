@@ -98,7 +98,7 @@ func (c *internalClient) sendHeartbeat(ctx context.Context, options *sendHeartbe
 
 	newRvn := c.generateRecordVersionNumber()
 
-	cond := ownershipLockCondition(c.partitionKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
+	cond := ownershipLockCondition(c.partitionKeyName, c.sortKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
 	update := expression.
 		Set(leaseDurationAttr, expression.Value(leaseDuration.String())).
 		Set(rvnAttr, expression.Value(newRvn))
