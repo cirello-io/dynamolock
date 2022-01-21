@@ -35,7 +35,7 @@ type acquireLockOptions struct {
 }
 
 type getLockOptions struct {
-	partitionKeyName                  string
+	partitionKey                      string
 	deleteLockOnRelease               bool
 	millisecondsToWait                time.Duration
 	refreshPeriodDuration             time.Duration

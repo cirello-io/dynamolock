@@ -256,12 +256,12 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 
 // AcquireLockWithContext holds the defined lock. The given context is passed
 // down to the underlying dynamoDB call.
-func (c *internalClient) acquireLockWithContext(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
+func (c *internalClient) acquireLockWithContext(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
 	req := &acquireLockOptions{
-		partitionKey: key,
+		partitionKey: partitionKey,
 	}
 	for _, opt := range opts {
 		opt(req)
@@ -296,7 +296,7 @@ func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOption
 	}
 
 	getLockOptions := getLockOptions{
-		partitionKeyName:     opt.partitionKey,
+		partitionKey:         opt.partitionKey,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,
 		sessionMonitor:       opt.sessionMonitor,
 		start:                time.Now(),
@@ -334,7 +334,7 @@ func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOption
 
 func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockOptions) (*Lock, error) {
 	c.logger.Info(ctx, "Call GetItem to see if the lock for ",
-		c.partitionKeyName, " =", getLockOptions.partitionKeyName, " exists in the table")
+		c.partitionKeyName, " =", getLockOptions.partitionKey, " exists in the table")
 	existingLock, err := c.getLockFromDynamoDB(ctx, *getLockOptions)
 	if err != nil {
 		return nil, err
@@ -365,7 +365,7 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 	for k, v := range getLockOptions.additionalAttributes {
 		item[k] = v
 	}
-	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKeyName)
+	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKey)
 	item[attrOwnerName] = stringAttrValue(c.ownerName)
 	item[attrLeaseDuration] = stringAttrValue(c.leaseDuration.String())
 
@@ -381,7 +381,7 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 		l, err := c.upsertAndMonitorNewOrReleasedLock(
 			ctx,
 			getLockOptions.additionalAttributes,
-			getLockOptions.partitionKeyName,
+			getLockOptions.partitionKey,
 			getLockOptions.deleteLockOnRelease,
 			newLockData,
 			item,
@@ -422,7 +422,7 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 		l, err := c.upsertAndMonitorExpiredLock(
 			ctx,
 			getLockOptions.additionalAttributes,
-			getLockOptions.partitionKeyName,
+			getLockOptions.partitionKey,
 			getLockOptions.deleteLockOnRelease,
 			existingLock, newLockData, item,
 			recordVersionNumber,
@@ -454,7 +454,7 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 func (c *internalClient) upsertAndMonitorExpiredLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
 	deleteLockOnRelease bool,
 	existingLock *Lock,
 	newLockData []byte,
@@ -476,16 +476,16 @@ func (c *internalClient) upsertAndMonitorExpiredLock(
 	}
 
 	c.logger.Info(ctx, "Acquiring an existing lock whose revisionVersionNumber did not change for ",
-		c.partitionKeyName, " partitionKeyName=", key)
+		c.partitionKeyName, " partitionKey=", partitionKey)
 	return c.putLockItemAndStartSessionMonitor(
-		ctx, additionalAttributes, key, deleteLockOnRelease, newLockData,
+		ctx, additionalAttributes, partitionKey, deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, putItemRequest)
 }
 
 func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	item map[string]types.AttributeValue,
@@ -513,8 +513,8 @@ func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 	// lock into DynamoDB should err on the side of thinking the lock will
 	// expire sooner than it actually will, so they start counting towards
 	// its expiration before the Put succeeds
-	c.logger.Info(ctx, "Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", key)
-	return c.putLockItemAndStartSessionMonitor(ctx, additionalAttributes, key,
+	c.logger.Info(ctx, "Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", partitionKey)
+	return c.putLockItemAndStartSessionMonitor(ctx, additionalAttributes, partitionKey,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, sessionMonitor, req)
 }
@@ -522,7 +522,7 @@ func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 func (c *internalClient) putLockItemAndStartSessionMonitor(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
-	key string,
+	partitionKey string,
 	deleteLockOnRelease bool,
 	newLockData []byte,
 	recordVersionNumber string,
@@ -538,7 +538,7 @@ func (c *internalClient) putLockItemAndStartSessionMonitor(
 
 	lockItem := &Lock{
 		client:               c,
-		partitionKey:         key,
+		partitionKey:         partitionKey,
 		data:                 newLockData,
 		deleteLockOnRelease:  deleteLockOnRelease,
 		ownerName:            c.ownerName,
@@ -555,7 +555,7 @@ func (c *internalClient) putLockItemAndStartSessionMonitor(
 }
 
 func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOptions) (*Lock, error) {
-	res, err := c.readFromDynamoDB(ctx, opt.partitionKeyName)
+	res, err := c.readFromDynamoDB(ctx, opt.partitionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -568,9 +568,9 @@ func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOpt
 	return c.createLockItem(opt, item)
 }
 
-func (c *internalClient) readFromDynamoDB(ctx context.Context, key string) (*dynamodb.GetItemOutput, error) {
+func (c *internalClient) readFromDynamoDB(ctx context.Context, partitionKey string) (*dynamodb.GetItemOutput, error) {
 	dynamoDBKey := map[string]types.AttributeValue{
-		c.partitionKeyName: stringAttrValue(key),
+		c.partitionKeyName: stringAttrValue(partitionKey),
 	}
 	return c.dynamoDB.GetItem(ctx, &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
@@ -616,7 +616,7 @@ func (c *internalClient) createLockItem(opt getLockOptions, item map[string]type
 
 	lockItem := &Lock{
 		client:               c,
-		partitionKey:         opt.partitionKeyName,
+		partitionKey:         opt.partitionKey,
 		data:                 data,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,
 		ownerName:            ownerName,
@@ -882,7 +882,7 @@ func (c *internalClient) getItemKeys(lockItem *Lock) map[string]types.AttributeV
 	return key
 }
 
-func (c *internalClient) getWithContext(ctx context.Context, key string) (*Lock, error) {
+func (c *internalClient) getWithContext(ctx context.Context, partitionKey string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -892,9 +892,9 @@ func (c *internalClient) getWithContext(ctx context.Context, key string) (*Lock,
 	}
 
 	getLockOption := getLockOptions{
-		partitionKeyName: key,
+		partitionKey: partitionKey,
 	}
-	keyName := getLockOption.partitionKeyName
+	keyName := getLockOption.partitionKey
 	v, ok := c.locks.Load(keyName)
 	if ok {
 		return v.(*Lock), nil
