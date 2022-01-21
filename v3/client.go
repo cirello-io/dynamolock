@@ -36,8 +36,8 @@ func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Clie
 
 // AcquireLockWithContext holds the defined lock. The given context is passed
 // down to the underlying dynamoDB call.
-func (c *Client) AcquireLockWithContext(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.acquireLockWithContext(ctx, key, opts...)
+func (c *Client) AcquireLockWithContext(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.acquireLockWithContext(ctx, partitionKey, opts...)
 }
 
 // GetWithContext finds out who owns the given lock, but does not acquire the
@@ -49,8 +49,8 @@ func (c *Client) AcquireLockWithContext(ctx context.Context, key string, opts ..
 // has the lock.) If the context is canceled, it is going to return the context
 // error on local cache hit. The given context is passed down to the underlying
 // dynamoDB call.
-func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) {
-	return c.getWithContext(ctx, key)
+func (c *Client) GetWithContext(ctx context.Context, partitionKey string) (*Lock, error) {
+	return c.getWithContext(ctx, partitionKey)
 }
 
 // Sugar functions
@@ -62,11 +62,11 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 // operations like releaseLock will not work (after calling Get, the caller
 // should check lockItem.isExpired() to figure out if it currently has the
 // lock.)
-func (c *Client) Get(key string) (*Lock, error) {
-	return c.GetWithContext(context.Background(), key)
+func (c *Client) Get(partitionKey string) (*Lock, error) {
+	return c.GetWithContext(context.Background(), partitionKey)
 }
 
 // AcquireLock holds the defined lock.
-func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.AcquireLockWithContext(context.Background(), key, opts...)
+func (c *Client) AcquireLock(partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.AcquireLockWithContext(context.Background(), partitionKey, opts...)
 }
