@@ -41,6 +41,8 @@ const (
 	attrIsReleased          = "isReleased"
 
 	defaultBuffer = 1 * time.Second
+
+	noSortKey = ""
 )
 
 var (
@@ -58,6 +60,7 @@ type internalClient struct {
 
 	tableName        string
 	partitionKeyName string
+	sortKeyName      string
 
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
@@ -80,11 +83,12 @@ const (
 	defaultHeartbeatPeriod  = 5 * time.Second
 )
 
-func newInternal(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*internalClient, error) {
+func newInternal(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts ...ClientOption) (*internalClient, error) {
 	c := &internalClient{
 		dynamoDB:         dynamoDB,
 		tableName:        tableName,
 		partitionKeyName: defaultPartitionKeyName,
+		sortKeyName:      sortKeyName,
 		leaseDuration:    defaultLeaseDuration,
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),

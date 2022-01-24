@@ -25,7 +25,7 @@ type Client struct{ *internalClient }
 
 // New creates a new dynamoDB based distributed lock client.
 func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Client, error) {
-	internalClient, err := newInternal(dynamoDB, tableName, opts...)
+	internalClient, err := newInternal(dynamoDB, tableName, noSortKey, opts...)
 
 	if err != nil {
 		return nil, err

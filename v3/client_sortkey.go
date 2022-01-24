@@ -30,7 +30,7 @@ func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts
 		return nil, errors.New("a sortKeyName must be supplied; use `Client` if you don't want a sort key")
 	}
 
-	internalClient, err := newInternal(dynamoDB, tableName, opts...)
+	internalClient, err := newInternal(dynamoDB, tableName, sortKeyName, opts...)
 
 	if err != nil {
 		return nil, err
