@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func (l *Lock) Close() error {
 		if l.IsExpired() {
 			return ErrLockAlreadyReleased
 		}
-		_, err := l.client.ReleaseLock(l)
+		_, err := l.client.ReleaseLock(context.Background(), l)
 		return err
 	}
 	return ErrCannotReleaseNullLock

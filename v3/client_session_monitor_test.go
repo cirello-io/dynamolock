@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestSessionMonitor(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -54,7 +55,7 @@ func TestSessionMonitor(t *testing.T) {
 		sessionMonitorWasTriggered bool
 	)
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("uhura",
+	lockedItem, err := c.AcquireLock(context.Background(), "uhura",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithSessionMonitor(500*time.Millisecond, func() {
@@ -94,7 +95,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks-monitor",
+	c.CreateTable(context.Background(), "locks-monitor",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -106,7 +107,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 		sessionMonitorWasTriggered bool
 	)
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("scotty",
+	lockedItem, err := c.AcquireLock(context.Background(), "scotty",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithSessionMonitor(50*time.Millisecond, func() {
@@ -145,7 +146,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -156,7 +157,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		mu                         sync.Mutex
 		sessionMonitorWasTriggered bool
 	)
-	lockedItem, err := c.AcquireLock("sessionMonitor",
+	lockedItem, err := c.AcquireLock(context.Background(), "sessionMonitor",
 		dynamolock.WithSessionMonitor(1*time.Second, func() {
 			mu.Lock()
 			sessionMonitorWasTriggered = true

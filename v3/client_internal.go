@@ -254,22 +254,17 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 	}
 }
 
-// AcquireLockWithContext holds the defined lock. The given context is passed
-// down to the underlying dynamoDB call.
-func (c *internalClient) acquireLockWithContext(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+func (c *internalClient) acquireLock(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
-	req := &acquireLockOptions{
+	opt := &acquireLockOptions{
 		partitionKey: partitionKey,
 	}
-	for _, opt := range opts {
-		opt(req)
+	for _, o := range opts {
+		o(opt)
 	}
-	return c.acquireLock(ctx, req)
-}
 
-func (c *internalClient) acquireLock(ctx context.Context, opt *acquireLockOptions) (*Lock, error) {
 	// Hold the read lock when acquiring locks. This prevents us from
 	// acquiring a lock while the Client is being closed as we hold the
 	// write lock during close.
@@ -653,7 +648,7 @@ func (c *internalClient) heartbeat(ctx context.Context) {
 	for range tick.C {
 		c.locks.Range(func(_ interface{}, value interface{}) bool {
 			lockItem := value.(*Lock)
-			if err := c.SendHeartbeat(lockItem); err != nil {
+			if err := c.SendHeartbeat(ctx, lockItem); err != nil {
 				c.logger.Error(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
 			}
 			return true
@@ -665,12 +660,12 @@ func (c *internalClient) heartbeat(ctx context.Context) {
 	}
 }
 
-// CreateTableWithContext prepares a DynamoDB table with the right schema for it
+// CreateTable prepares a DynamoDB table with the right schema for it
 // to be used by this locking library. The table should be set up in advance,
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *internalClient) CreateTableWithContext(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *internalClient) CreateTable(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -740,11 +735,11 @@ func (c *internalClient) createTable(ctx context.Context, opt *createDynamoDBTab
 	return c.dynamoDB.CreateTable(ctx, createTableInput)
 }
 
-// ReleaseLockWithContext releases the given lock if the current user still has it,
+// ReleaseLock releases the given lock if the current user still has it,
 // returning true if the lock was successfully released, and false if someone
 // else already stole the lock or a problem happened. Deletes the lock item if
 // it is released and deleteLockItemOnClose is set.
-func (c *internalClient) ReleaseLockWithContext(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
+func (c *internalClient) ReleaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
 	if c.isClosed() {
 		return false, ErrClientClosed
 	}
@@ -882,7 +877,7 @@ func (c *internalClient) getItemKeys(lockItem *Lock) map[string]types.AttributeV
 	return key
 }
 
-func (c *internalClient) getWithContext(ctx context.Context, partitionKey string) (*Lock, error) {
+func (c *internalClient) get(ctx context.Context, partitionKey string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -924,9 +919,9 @@ func (c *internalClient) isClosed() bool {
 	return closed
 }
 
-// CloseWithContext releases all of the locks. The given context is passed down
+// Close releases all of the locks. The given context is passed down
 // to the underlying dynamoDB calls.
-func (c *internalClient) CloseWithContext(ctx context.Context) error {
+func (c *internalClient) Close(ctx context.Context) error {
 	err := ErrClientClosed
 	c.closeOnce.Do(func() {
 		// Hold the write lock for the duration of the close operation
@@ -1014,27 +1009,4 @@ type DynamoDBClient interface {
 	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 	CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error)
-}
-
-// Sugar functions
-
-// ReleaseLock releases the given lock if the current user still has it,
-// returning true if the lock was successfully released, and false if someone
-// else already stole the lock or a problem happened. Deletes the lock item if
-// it is released and deleteLockItemOnClose is set.
-func (c *internalClient) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
-	return c.ReleaseLockWithContext(context.Background(), lockItem, opts...)
-}
-
-// Close releases all of the locks.
-func (c *internalClient) Close() error {
-	return c.CloseWithContext(context.Background())
-}
-
-// CreateTable prepares a DynamoDB table with the right schema for it to be used
-// by this locking library. The table should be set up in advance, because it
-// takes a few minutes for DynamoDB to provision a new instance. Also, if the
-// table already exists, it will return an error.
-func (c *internalClient) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
-	return c.CreateTableWithContext(context.Background(), tableName, opts...)
 }
