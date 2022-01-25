@@ -39,39 +39,21 @@ func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts
 	return &ClientWithSortKey{internalClient}, nil
 }
 
-// AcquireLockWithContext holds the defined lock. The given context is passed
+// AcquireLock holds the defined lock. The given context is passed
 // down to the underlying dynamoDB call.
-func (c *ClientWithSortKey) AcquireLockWithContext(ctx context.Context, partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.acquireLockWithContext(ctx, partitionKey, opts...)
+func (c *ClientWithSortKey) AcquireLock(ctx context.Context, partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
+	return c.acquireLock(ctx, partitionKey, opts...)
 }
 
-// GetWithContext finds out who owns the given lock, but does not acquire the
+// Get finds out who owns the given lock, but does not acquire the
 // lock. It returns the metadata currently associated with the given lock. If
 // the client currently has the lock, it will return the lock, and operations
 // such as releaseLock will work. However, if the client does not have the lock,
-// then operations like releaseLock will not work (after calling GetWithContext,
+// then operations like releaseLock will not work (after calling Get,
 // the caller should check lockItem.isExpired() to figure out if it currently
 // has the lock.) If the context is canceled, it is going to return the context
 // error on local cache hit. The given context is passed down to the underlying
 // dynamoDB call.
-func (c *ClientWithSortKey) GetWithContext(ctx context.Context, partitionKey, sortKey string) (*Lock, error) {
-	return c.getWithContext(ctx, partitionKey)
-}
-
-// Sugar functions
-
-// Get finds out who owns the given lock, but does not acquire the lock. It
-// returns the metadata currently associated with the given lock. If the client
-// currently has the lock, it will return the lock, and operations such as
-// releaseLock will work. However, if the client does not have the lock, then
-// operations like releaseLock will not work (after calling Get, the caller
-// should check lockItem.isExpired() to figure out if it currently has the
-// lock.)
-func (c *ClientWithSortKey) Get(partitionKey, sortKey string) (*Lock, error) {
-	return c.GetWithContext(context.Background(), partitionKey, sortKey)
-}
-
-// AcquireLock holds the defined lock.
-func (c *ClientWithSortKey) AcquireLock(partitionKey, sortKey string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.AcquireLockWithContext(context.Background(), partitionKey, sortKey, opts...)
+func (c *ClientWithSortKey) Get(ctx context.Context, partitionKey, sortKey string) (*Lock, error) {
+	return c.get(ctx, partitionKey)
 }

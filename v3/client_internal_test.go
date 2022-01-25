@@ -71,7 +71,7 @@ func TestCloseRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lockClient.AcquireLock(strconv.Itoa(si))
+			lockClient.AcquireLock(context.Background(), strconv.Itoa(si))
 		}()
 	}
 
@@ -79,7 +79,7 @@ func TestCloseRace(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		lockClient.Close()
+		lockClient.Close(context.Background())
 	}()
 
 	// Check for any leaked locks

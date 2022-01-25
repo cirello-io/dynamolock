@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -41,7 +42,7 @@ func TestIssue56(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lockClient.CreateTable("locksIssue56",
+	lockClient.CreateTable(context.Background(), "locksIssue56",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1000),
 			WriteCapacityUnits: aws.Int64(1000),
@@ -63,7 +64,7 @@ func TestIssue56(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				lock, err := lockClient.AcquireLock(
+				lock, err := lockClient.AcquireLock(context.Background(),
 					"key",
 					dynamolock.WithAdditionalTimeToWaitForLock(expectedTimeoutMinimumAge),
 					dynamolock.WithRefreshPeriod(100*time.Millisecond),
@@ -71,7 +72,7 @@ func TestIssue56(t *testing.T) {
 				switch err {
 				case nil:
 					count++
-					lockClient.ReleaseLock(lock)
+					lockClient.ReleaseLock(context.Background(), lock)
 					return
 				default:
 					var errTimeout *dynamolock.TimeoutError

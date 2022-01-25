@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Close()
+	c.Close(context.Background())
 }
 
 func TestHeartbeatHandover(t *testing.T) {
@@ -61,7 +62,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -69,7 +70,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	)
 
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("kirk",
+	lockedItem, err := c.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 	)
@@ -87,13 +88,13 @@ func TestHeartbeatHandover(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 1; i < 3; i++ {
-			if err := c.SendHeartbeat(lockedItem); err != nil {
+			if err := c.SendHeartbeat(context.Background(), lockedItem); err != nil {
 				t.Log("sendHeartbeat error:", err)
 			}
 			time.Sleep(2 * time.Second)
 		}
 		time.Sleep(1 * time.Second)
-		if err := c.SendHeartbeat(lockedItem); err == nil {
+		if err := c.SendHeartbeat(context.Background(), lockedItem); err == nil {
 			t.Log("the heartbeat must fail after lock is lost")
 		}
 	}()
@@ -110,7 +111,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	data2 := []byte("some content b")
-	_, err = c2.AcquireLock("kirk",
+	_, err = c2.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data2),
 		dynamolock.ReplaceData(),
 	)
@@ -119,7 +120,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	time.Sleep(6 * time.Second)
-	lockedItem2, err := c2.AcquireLock("kirk",
+	lockedItem2, err := c2.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data2),
 		dynamolock.ReplaceData(),
 	)
@@ -153,7 +154,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -163,7 +164,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 	t.Run("delete data on heartbeat", func(t *testing.T) {
 		const lockName = "delete-data-on-heartbeat"
 		data := []byte("some content a")
-		lockedItem, err := c.AcquireLock(lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
+		lockedItem, err := c.AcquireLock(context.Background(), lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +174,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 		}
 
-		if err := c.SendHeartbeat(lockedItem, dynamolock.DeleteData()); err != nil {
+		if err := c.SendHeartbeat(context.Background(), lockedItem, dynamolock.DeleteData()); err != nil {
 			t.Fatal("cannot send heartbeat: ", err)
 		}
 
@@ -181,7 +182,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 		if err != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		gotItem, err := c2.Get(lockName)
+		gotItem, err := c2.Get(context.Background(), lockName)
 		if err != nil {
 			t.Fatal("cannot lock: ", err)
 		}
@@ -194,7 +195,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 	t.Run("replace data on heartbeat", func(t *testing.T) {
 		const lockName = "replace-data-on-heartbeat"
 		data := []byte("some content a")
-		lockedItem, err := c.AcquireLock(lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
+		lockedItem, err := c.AcquireLock(context.Background(), lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +206,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 		}
 
 		replacedData := []byte("some content b")
-		if err := c.SendHeartbeat(lockedItem, dynamolock.ReplaceHeartbeatData(replacedData)); err != nil {
+		if err := c.SendHeartbeat(context.Background(), lockedItem, dynamolock.ReplaceHeartbeatData(replacedData)); err != nil {
 			t.Fatal("cannot send heartbeat: ", err)
 		}
 
@@ -213,7 +214,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 		if err != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		gotItem, err := c2.Get(lockName)
+		gotItem, err := c2.Get(context.Background(), lockName)
 		if err != nil {
 			t.Fatal("cannot lock: ", err)
 		}
@@ -225,11 +226,11 @@ func TestHeartbeatDataOps(t *testing.T) {
 
 	t.Run("racy heartbeats", func(t *testing.T) {
 		const lockName = "racy-heartbeats"
-		lockedItemAlpha, err := c.AcquireLock(lockName)
+		lockedItemAlpha, err := c.AcquireLock(context.Background(), lockName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := c.SendHeartbeat(lockedItemAlpha); err != nil {
+		if err := c.SendHeartbeat(context.Background(), lockedItemAlpha); err != nil {
 			t.Fatal("cannot send heartbeat: ", err)
 		}
 
@@ -237,15 +238,15 @@ func TestHeartbeatDataOps(t *testing.T) {
 		if err != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		lockedItemBeta, err := c2.AcquireLock(lockName, dynamolock.WithAdditionalTimeToWaitForLock(2*time.Second))
+		lockedItemBeta, err := c2.AcquireLock(context.Background(), lockName, dynamolock.WithAdditionalTimeToWaitForLock(2*time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := c2.SendHeartbeat(lockedItemBeta); err != nil {
+		if err := c2.SendHeartbeat(context.Background(), lockedItemBeta); err != nil {
 			t.Fatal("cannot send heartbeat: ", err)
 		}
 
-		if err := c.SendHeartbeat(lockedItemAlpha); err == nil {
+		if err := c.SendHeartbeat(context.Background(), lockedItemAlpha); err == nil {
 			t.Fatal("concurrent heartbeats should knock one another out")
 		} else {
 			t.Log("send heartbeat for lockedItemAlpha:", err)
