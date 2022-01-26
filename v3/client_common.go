@@ -665,12 +665,12 @@ func (c *commonClient) heartbeat(ctx context.Context) {
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *commonClient) CreateTable(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *commonClient) CreateTable(ctx context.Context, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
 	createTableOptions := &createDynamoDBTableOptions{
-		tableName:        tableName,
+		tableName:        c.tableName,
 		billingMode:      "PAY_PER_REQUEST",
 		partitionKeyName: c.partitionKeyName,
 	}
