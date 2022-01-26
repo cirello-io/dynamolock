@@ -48,6 +48,7 @@ First you have to create the table and wait for DynamoDB to complete:
 package main
 
 import (
+	"context"
 	"log"
 
 	"cirello.io/dynamolock/v3"
@@ -70,10 +71,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer c.Close()
+	defer c.Close(context.Background())
 
 	log.Println("ensuring table exists")
-	_, err := c.CreateTable("locks",
+	_, err := c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -92,6 +93,7 @@ to run:
 package main
 
 import (
+	"context"
 	"log"
 
 	"cirello.io/dynamolock/v3"
@@ -113,10 +115,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer c.Close()
+	defer c.Close(context.Background())
 
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("spock",
+	lockedItem, err := c.AcquireLock(context.Background(), "spock",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 	)
@@ -130,7 +132,7 @@ func main() {
 	}
 
 	log.Println("cleaning lock")
-	success, err := c.ReleaseLock(lockedItem)
+	success, err := c.ReleaseLock(context.Background(), lockedItem)
 	if !success {
 		log.Fatal("lost lock before release")
 	}
@@ -154,7 +156,8 @@ locks will not expire until you call `ReleaseLock()` or `lockItem.Close()`
 You can read the data in the lock without acquiring it, and find out who owns
 the lock. Here's how:
 ```Go
-lock, err := lockClient.Get("kirk");
+ctx := context.Background() // or some other context
+lock, err := lockClient.Get(ctx, "kirk");
 ```
 
 ## Logic to avoid problems with clock skew

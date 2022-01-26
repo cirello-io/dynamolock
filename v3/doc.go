@@ -24,6 +24,7 @@ limitations under the License.
 // Basic usage:
 //
 //	import (
+//		"context"
 //		"log"
 //
 //		"cirello.io/dynamolock/v3"
@@ -47,10 +48,10 @@ limitations under the License.
 //	if err != nil {
 //		log.Fatal(err)
 //	}
-//	defer c.Close()
+//	defer c.Close(context.Background())
 //
 //	log.Println("ensuring table exists")
-//	c.CreateTable("locks",
+//	c.CreateTable(context.Background(), "locks",
 //		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 //			ReadCapacityUnits:  aws.Int64(5),
 //			WriteCapacityUnits: aws.Int64(5),
@@ -60,7 +61,7 @@ limitations under the License.
 //  //-- at this point you must wait for DynamoDB to complete the creation.
 //
 //	data := []byte("some content a")
-//	lockedItem, err := c.AcquireLock("spock",
+//	lockedItem, err := c.AcquireLock(context.Background(), "spock",
 //		dynamolock.WithData(data),
 //		dynamolock.ReplaceData(),
 //	)
@@ -74,7 +75,7 @@ limitations under the License.
 //	}
 //
 //	log.Println("cleaning lock")
-//	success, err := c.ReleaseLock(lockedItem)
+//	success, err := c.ReleaseLock(context.Background(), lockedItem)
 //	if !success {
 //		log.Fatal("lost lock before release")
 //	}
