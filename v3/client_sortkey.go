@@ -22,7 +22,7 @@ import (
 )
 
 // ClientWithSortKey is a dynamoDB based distributed lock client, but with a required sort key.
-type ClientWithSortKey struct{ *internalClient }
+type ClientWithSortKey struct{ *commonClient }
 
 // NewWithSortKey creates a new dynamoDB based distributed lock client.
 func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts ...ClientOption) (*ClientWithSortKey, error) {
@@ -30,13 +30,13 @@ func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts
 		return nil, errors.New("a sortKeyName must be supplied; use `Client` if you don't want a sort key")
 	}
 
-	internalClient, err := newInternal(dynamoDB, tableName, opts...)
+	commonClient, err := newCommon(dynamoDB, tableName, opts...)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &ClientWithSortKey{internalClient}, nil
+	return &ClientWithSortKey{commonClient}, nil
 }
 
 // AcquireLock holds the defined lock. The given context is passed

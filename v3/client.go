@@ -21,17 +21,17 @@ import (
 )
 
 // Client is a dynamoDB based distributed lock client.
-type Client struct{ *internalClient }
+type Client struct{ *commonClient }
 
 // New creates a new dynamoDB based distributed lock client.
 func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Client, error) {
-	internalClient, err := newInternal(dynamoDB, tableName, opts...)
+	commonClient, err := newCommon(dynamoDB, tableName, opts...)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &Client{internalClient}, nil
+	return &Client{commonClient}, nil
 }
 
 // AcquireLock holds the defined lock. The given context is passed
