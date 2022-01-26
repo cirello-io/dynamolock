@@ -42,7 +42,7 @@ func TestIssue56(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lockClient.CreateTable(context.Background(), "locksIssue56",
+	lockClient.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1000),
 			WriteCapacityUnits: aws.Int64(1000),

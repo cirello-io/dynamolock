@@ -100,7 +100,7 @@ func TestClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -196,7 +196,7 @@ func TestReadLockContent(t *testing.T) {
 		defer c.Close(context.Background())
 
 		t.Log("ensuring table exists")
-		c.CreateTable(context.Background(), "locks",
+		c.CreateTable(context.Background(),
 			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
@@ -253,7 +253,7 @@ func TestReadLockContent(t *testing.T) {
 		defer c.Close(context.Background())
 
 		t.Log("ensuring table exists")
-		c.CreateTable(context.Background(), "locks",
+		c.CreateTable(context.Background(),
 			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
@@ -294,7 +294,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	defer c.Close(context.Background())
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -354,7 +354,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	defer c.Close(context.Background())
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -427,7 +427,7 @@ func TestFailIfLocked(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -460,7 +460,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -538,7 +538,7 @@ func TestDeleteLockOnRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -590,7 +590,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -625,7 +625,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -669,7 +669,7 @@ func TestClientClose(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -716,7 +716,7 @@ func TestClientClose(t *testing.T) {
 		t.Error("expected error missing (acquire after close):", err)
 	}
 	t.Log("create table after close")
-	if _, err := c.CreateTable(context.Background(), "createTableAfterClose"); err != dynamolock.ErrClientClosed {
+	if _, err := c.CreateTable(context.Background()); err != dynamolock.ErrClientClosed {
 		t.Error("expected error missing (create table after close):", err)
 	}
 }
@@ -737,7 +737,7 @@ func TestInvalidReleases(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -799,7 +799,7 @@ func TestClientWithDataAfterRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -854,7 +854,7 @@ func TestHeartbeatLoss(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),

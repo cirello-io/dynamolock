@@ -62,7 +62,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -154,7 +154,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable(context.Background(), "locks",
+	c.CreateTable(context.Background(),
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
