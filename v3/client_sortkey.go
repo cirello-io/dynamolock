@@ -19,6 +19,10 @@ package dynamolock
 import (
 	"context"
 	"errors"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // ClientWithSortKey is a dynamoDB based distributed lock client, but with a required sort key.
@@ -59,4 +63,39 @@ func (c *ClientWithSortKey) AcquireLock(ctx context.Context, partitionKey, sortK
 // dynamoDB call.
 func (c *ClientWithSortKey) Get(ctx context.Context, partitionKey, sortKey string) (*Lock, error) {
 	return c.get(ctx, partitionKey)
+}
+
+// CreateTable prepares a DynamoDB table with the right schema for it
+// to be used by this locking library. The table should be set up in advance,
+// because it takes a few minutes for DynamoDB to provision a new instance.
+// Also, if the table already exists, it will return an error. The given context
+// is passed down to the underlying dynamoDB call.
+func (c *ClientWithSortKey) CreateTable(ctx context.Context, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+	return c.commonClient.CreateTable(ctx, c.createTableSchema, opts...)
+}
+
+func (c *ClientWithSortKey) createTableSchema() ([]types.KeySchemaElement, []types.AttributeDefinition) {
+	keySchema := []types.KeySchemaElement{
+		{
+			AttributeName: aws.String(c.partitionKeyName),
+			KeyType:       types.KeyTypeHash,
+		},
+		{
+			AttributeName: aws.String(c.sortKeyName),
+			KeyType:       types.KeyTypeRange,
+		},
+	}
+
+	attributeDefinitions := []types.AttributeDefinition{
+		{
+			AttributeName: aws.String(c.partitionKeyName),
+			AttributeType: types.ScalarAttributeTypeS,
+		},
+		{
+			AttributeName: aws.String(c.sortKeyName),
+			AttributeType: types.ScalarAttributeTypeS,
+		},
+	}
+
+	return keySchema, attributeDefinitions
 }

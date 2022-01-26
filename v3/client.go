@@ -18,6 +18,10 @@ package dynamolock
 
 import (
 	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // Client is a dynamoDB based distributed lock client.
@@ -51,4 +55,31 @@ func (c *Client) AcquireLock(ctx context.Context, partitionKey string, opts ...A
 // dynamoDB call.
 func (c *Client) Get(ctx context.Context, partitionKey string) (*Lock, error) {
 	return c.get(ctx, partitionKey)
+}
+
+// CreateTable prepares a DynamoDB table with the right schema for it
+// to be used by this locking library. The table should be set up in advance,
+// because it takes a few minutes for DynamoDB to provision a new instance.
+// Also, if the table already exists, it will return an error. The given context
+// is passed down to the underlying dynamoDB call.
+func (c *Client) CreateTable(ctx context.Context, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+	return c.commonClient.CreateTable(ctx, c.createTableSchema, opts...)
+}
+
+func (c *Client) createTableSchema() ([]types.KeySchemaElement, []types.AttributeDefinition) {
+	keySchema := []types.KeySchemaElement{
+		{
+			AttributeName: aws.String(c.partitionKeyName),
+			KeyType:       types.KeyTypeHash,
+		},
+	}
+
+	attributeDefinitions := []types.AttributeDefinition{
+		{
+			AttributeName: aws.String(c.partitionKeyName),
+			AttributeType: types.ScalarAttributeTypeS,
+		},
+	}
+
+	return keySchema, attributeDefinitions
 }
