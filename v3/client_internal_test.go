@@ -96,7 +96,7 @@ func TestCloseRace(t *testing.T) {
 }
 
 func TestBadCreateLockItem(t *testing.T) {
-	c := &Client{&internalClient{}}
+	c := &Client{&commonClient{}}
 	_, err := c.createLockItem(getLockOptions{}, map[string]types.AttributeValue{
 		attrLeaseDuration: stringAttrValue("bad duration"),
 	})

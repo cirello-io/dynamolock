@@ -53,7 +53,7 @@ var (
 
 var isReleasedAttrVal = expression.Value("1")
 
-type internalClient struct {
+type commonClient struct {
 	dynamoDB DynamoDBClient
 
 	tableName        string
@@ -80,8 +80,8 @@ const (
 	defaultHeartbeatPeriod  = 5 * time.Second
 )
 
-func newInternal(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*internalClient, error) {
-	c := &internalClient{
+func newCommon(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*commonClient, error) {
+	c := &commonClient{
 		dynamoDB:         dynamoDB,
 		tableName:        tableName,
 		partitionKeyName: defaultPartitionKeyName,
@@ -111,29 +111,29 @@ func newInternal(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption
 }
 
 // ClientOption reconfigure the lock client creation.
-type ClientOption func(*internalClient)
+type ClientOption func(*commonClient)
 
 // WithPartitionKeyName defines the key name used for asserting keys uniqueness.
 func WithPartitionKeyName(s string) ClientOption {
-	return func(c *internalClient) { c.partitionKeyName = s }
+	return func(c *commonClient) { c.partitionKeyName = s }
 }
 
 // WithOwnerName changes the owner linked to the client, and by consequence to
 // locks.
 func WithOwnerName(s string) ClientOption {
-	return func(c *internalClient) { c.ownerName = s }
+	return func(c *commonClient) { c.ownerName = s }
 }
 
 // WithLeaseDuration defines how long should the lease be held.
 func WithLeaseDuration(d time.Duration) ClientOption {
-	return func(c *internalClient) { c.leaseDuration = d }
+	return func(c *commonClient) { c.leaseDuration = d }
 }
 
 // WithHeartbeatPeriod defines the frequency of the heartbeats. Set to zero to
 // disable it. Heartbeats should have no more than half of the duration of the
 // lease.
 func WithHeartbeatPeriod(d time.Duration) ClientOption {
-	return func(c *internalClient) { c.heartbeatPeriod = d }
+	return func(c *commonClient) { c.heartbeatPeriod = d }
 }
 
 // DisableHeartbeat disables automatic hearbeats. Use SendHeartbeat to freshen
@@ -145,19 +145,19 @@ func DisableHeartbeat() ClientOption {
 // WithLogger injects a logger into the client, so its internals can be
 // recorded.
 func WithLogger(l Logger) ClientOption {
-	return func(c *internalClient) { c.logger = &plainLogger{l} }
+	return func(c *commonClient) { c.logger = &plainLogger{l} }
 }
 
 // WithLeveledLogger injects a logger into the client, so its internals can be
 // recorded.
 func WithLeveledLogger(l LeveledLogger) ClientOption {
-	return func(c *internalClient) { c.logger = &contextLoggerAdapter{l} }
+	return func(c *commonClient) { c.logger = &contextLoggerAdapter{l} }
 }
 
 // WithContextLeveledLogger injects a logger into the client, so its internals can be
 // recorded.
 func WithContextLeveledLogger(l ContextLeveledLogger) ClientOption {
-	return func(c *internalClient) { c.logger = l }
+	return func(c *commonClient) { c.logger = l }
 }
 
 // AcquireLockOption allows to change how the lock is actually held by the
@@ -254,7 +254,7 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 	}
 }
 
-func (c *internalClient) acquireLock(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
+func (c *commonClient) acquireLock(ctx context.Context, partitionKey string, opts ...AcquireLockOption) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -327,7 +327,7 @@ func (c *internalClient) acquireLock(ctx context.Context, partitionKey string, o
 	}
 }
 
-func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockOptions) (*Lock, error) {
+func (c *commonClient) storeLock(ctx context.Context, getLockOptions *getLockOptions) (*Lock, error) {
 	c.logger.Info(ctx, "Call GetItem to see if the lock for ",
 		c.partitionKeyName, " =", getLockOptions.partitionKey, " exists in the table")
 	existingLock, err := c.getLockFromDynamoDB(ctx, *getLockOptions)
@@ -446,7 +446,7 @@ func (c *internalClient) storeLock(ctx context.Context, getLockOptions *getLockO
 	return nil, nil
 }
 
-func (c *internalClient) upsertAndMonitorExpiredLock(
+func (c *commonClient) upsertAndMonitorExpiredLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	partitionKey string,
@@ -477,7 +477,7 @@ func (c *internalClient) upsertAndMonitorExpiredLock(
 		recordVersionNumber, sessionMonitor, putItemRequest)
 }
 
-func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
+func (c *commonClient) upsertAndMonitorNewOrReleasedLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	partitionKey string,
@@ -514,7 +514,7 @@ func (c *internalClient) upsertAndMonitorNewOrReleasedLock(
 		recordVersionNumber, sessionMonitor, req)
 }
 
-func (c *internalClient) putLockItemAndStartSessionMonitor(
+func (c *commonClient) putLockItemAndStartSessionMonitor(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	partitionKey string,
@@ -549,7 +549,7 @@ func (c *internalClient) putLockItemAndStartSessionMonitor(
 	return lockItem, nil
 }
 
-func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOptions) (*Lock, error) {
+func (c *commonClient) getLockFromDynamoDB(ctx context.Context, opt getLockOptions) (*Lock, error) {
 	res, err := c.readFromDynamoDB(ctx, opt.partitionKey)
 	if err != nil {
 		return nil, err
@@ -563,7 +563,7 @@ func (c *internalClient) getLockFromDynamoDB(ctx context.Context, opt getLockOpt
 	return c.createLockItem(opt, item)
 }
 
-func (c *internalClient) readFromDynamoDB(ctx context.Context, partitionKey string) (*dynamodb.GetItemOutput, error) {
+func (c *commonClient) readFromDynamoDB(ctx context.Context, partitionKey string) (*dynamodb.GetItemOutput, error) {
 	dynamoDBKey := map[string]types.AttributeValue{
 		c.partitionKeyName: stringAttrValue(partitionKey),
 	}
@@ -574,7 +574,7 @@ func (c *internalClient) readFromDynamoDB(ctx context.Context, partitionKey stri
 	})
 }
 
-func (c *internalClient) createLockItem(opt getLockOptions, item map[string]types.AttributeValue) (*Lock, error) {
+func (c *commonClient) createLockItem(opt getLockOptions, item map[string]types.AttributeValue) (*Lock, error) {
 	var data []byte
 
 	if r, ok := item[attrData]; ok {
@@ -624,7 +624,7 @@ func (c *internalClient) createLockItem(opt getLockOptions, item map[string]type
 	return lockItem, nil
 }
 
-func (c *internalClient) generateRecordVersionNumber() string {
+func (c *commonClient) generateRecordVersionNumber() string {
 	// TODO: improve me
 	return randString(32)
 }
@@ -641,7 +641,7 @@ func randString(n int) string {
 	return string(b)
 }
 
-func (c *internalClient) heartbeat(ctx context.Context) {
+func (c *commonClient) heartbeat(ctx context.Context) {
 	c.logger.Info(ctx, "starting heartbeats")
 	tick := time.NewTicker(c.heartbeatPeriod)
 	defer tick.Stop()
@@ -665,7 +665,7 @@ func (c *internalClient) heartbeat(ctx context.Context) {
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *internalClient) CreateTable(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *commonClient) CreateTable(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -702,7 +702,7 @@ func WithProvisionedThroughput(provisionedThroughput *types.ProvisionedThroughpu
 	}
 }
 
-func (c *internalClient) createTable(ctx context.Context, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
+func (c *commonClient) createTable(ctx context.Context, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
 	keySchema := []types.KeySchemaElement{
 		{
 			AttributeName: aws.String(opt.partitionKeyName),
@@ -739,7 +739,7 @@ func (c *internalClient) createTable(ctx context.Context, opt *createDynamoDBTab
 // returning true if the lock was successfully released, and false if someone
 // else already stole the lock or a problem happened. Deletes the lock item if
 // it is released and deleteLockItemOnClose is set.
-func (c *internalClient) ReleaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
+func (c *commonClient) ReleaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
 	if c.isClosed() {
 		return false, ErrClientClosed
 	}
@@ -781,7 +781,7 @@ func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName str
 	return cond
 }
 
-func (c *internalClient) releaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) error {
+func (c *commonClient) releaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) error {
 	options := &releaseLockOptions{
 		lockItem: lockItem,
 	}
@@ -825,7 +825,7 @@ func (c *internalClient) releaseLock(ctx context.Context, lockItem *Lock, opts .
 	return nil
 }
 
-func (c *internalClient) deleteLock(ctx context.Context, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
+func (c *commonClient) deleteLock(ctx context.Context, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
 	delExpr, _ := expression.NewBuilder().WithCondition(ownershipLockCond).Build()
 	deleteItemRequest := &dynamodb.DeleteItemInput{
 		TableName:                 aws.String(c.tableName),
@@ -841,7 +841,7 @@ func (c *internalClient) deleteLock(ctx context.Context, ownershipLockCond expre
 	return nil
 }
 
-func (c *internalClient) updateLock(ctx context.Context, data []byte, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
+func (c *commonClient) updateLock(ctx context.Context, data []byte, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
 	update := expression.Set(isReleasedAttr, isReleasedAttrVal)
 	if len(data) > 0 {
 		update = update.Set(dataAttr, expression.Value(data))
@@ -861,7 +861,7 @@ func (c *internalClient) updateLock(ctx context.Context, data []byte, ownershipL
 	return err
 }
 
-func (c *internalClient) releaseAllLocks(ctx context.Context) error {
+func (c *commonClient) releaseAllLocks(ctx context.Context) error {
 	var err error
 	c.locks.Range(func(key interface{}, value interface{}) bool {
 		err = c.releaseLock(ctx, value.(*Lock))
@@ -870,14 +870,14 @@ func (c *internalClient) releaseAllLocks(ctx context.Context) error {
 	return err
 }
 
-func (c *internalClient) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
+func (c *commonClient) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
 	key := map[string]types.AttributeValue{
 		c.partitionKeyName: stringAttrValue(lockItem.partitionKey),
 	}
 	return key
 }
 
-func (c *internalClient) get(ctx context.Context, partitionKey string) (*Lock, error) {
+func (c *commonClient) get(ctx context.Context, partitionKey string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -912,7 +912,7 @@ func (c *internalClient) get(ctx context.Context, partitionKey string) (*Lock, e
 // closed.
 var ErrClientClosed = errors.New("client already closed")
 
-func (c *internalClient) isClosed() bool {
+func (c *commonClient) isClosed() bool {
 	c.mu.RLock()
 	closed := c.closed
 	c.mu.RUnlock()
@@ -921,7 +921,7 @@ func (c *internalClient) isClosed() bool {
 
 // Close releases all of the locks. The given context is passed down
 // to the underlying dynamoDB calls.
-func (c *internalClient) Close(ctx context.Context) error {
+func (c *commonClient) Close(ctx context.Context) error {
 	err := ErrClientClosed
 	c.closeOnce.Do(func() {
 		// Hold the write lock for the duration of the close operation
@@ -935,7 +935,7 @@ func (c *internalClient) Close(ctx context.Context) error {
 	return err
 }
 
-func (c *internalClient) tryAddSessionMonitor(lockName string, lock *Lock) {
+func (c *commonClient) tryAddSessionMonitor(lockName string, lock *Lock) {
 	if lock.sessionMonitor != nil && lock.sessionMonitor.callback != nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		c.lockSessionMonitorChecker(ctx, lockName, lock)
@@ -943,7 +943,7 @@ func (c *internalClient) tryAddSessionMonitor(lockName string, lock *Lock) {
 	}
 }
 
-func (c *internalClient) removeKillSessionMonitor(monitorName string) {
+func (c *commonClient) removeKillSessionMonitor(monitorName string) {
 	sm, ok := c.sessionMonitorCancellations.Load(monitorName)
 	if !ok {
 		return
@@ -955,7 +955,7 @@ func (c *internalClient) removeKillSessionMonitor(monitorName string) {
 	}
 }
 
-func (c *internalClient) lockSessionMonitorChecker(ctx context.Context,
+func (c *commonClient) lockSessionMonitorChecker(ctx context.Context,
 	monitorName string, lock *Lock) {
 	go func() {
 		defer c.sessionMonitorCancellations.Delete(monitorName)

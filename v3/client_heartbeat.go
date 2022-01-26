@@ -57,7 +57,7 @@ func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 // calling it and sending heartbeats. However, if WithHeartbeatPeriod = 0, then
 // this method must be called to instruct DynamoDB that the lock should not be
 // expired. The given context is passed down to the underlying dynamoDB call.
-func (c *internalClient) SendHeartbeat(ctx context.Context, lockItem *Lock, opts ...SendHeartbeatOption) error {
+func (c *commonClient) SendHeartbeat(ctx context.Context, lockItem *Lock, opts ...SendHeartbeatOption) error {
 	if c.isClosed() {
 		return ErrClientClosed
 	}
@@ -70,7 +70,7 @@ func (c *internalClient) SendHeartbeat(ctx context.Context, lockItem *Lock, opts
 	return c.sendHeartbeat(ctx, sho)
 }
 
-func (c *internalClient) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions) error {
+func (c *commonClient) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions) error {
 	leaseDuration := c.leaseDuration
 
 	lockItem := options.lockItem
