@@ -58,7 +58,5 @@ type releaseLockOptions struct {
 type createDynamoDBTableOptions struct {
 	billingMode           types.BillingMode
 	provisionedThroughput *types.ProvisionedThroughput
-	tableName             string
-	partitionKeyName      string
 	tags                  []types.Tag
 }

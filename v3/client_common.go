@@ -660,24 +660,25 @@ func (c *commonClient) heartbeat(ctx context.Context) {
 	}
 }
 
+type createTableSchema func() ([]types.KeySchemaElement, []types.AttributeDefinition)
+
 // CreateTable prepares a DynamoDB table with the right schema for it
 // to be used by this locking library. The table should be set up in advance,
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *commonClient) CreateTable(ctx context.Context, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *commonClient) CreateTable(ctx context.Context, cts createTableSchema,
+	opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
 	createTableOptions := &createDynamoDBTableOptions{
-		tableName:        c.tableName,
-		billingMode:      "PAY_PER_REQUEST",
-		partitionKeyName: c.partitionKeyName,
+		billingMode: "PAY_PER_REQUEST",
 	}
 	for _, opt := range opts {
 		opt(createTableOptions)
 	}
-	return c.createTable(ctx, createTableOptions)
+	return c.createTable(ctx, cts, createTableOptions)
 }
 
 // CreateTableOption is an options type for the CreateTable method in the lock
@@ -702,23 +703,11 @@ func WithProvisionedThroughput(provisionedThroughput *types.ProvisionedThroughpu
 	}
 }
 
-func (c *commonClient) createTable(ctx context.Context, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
-	keySchema := []types.KeySchemaElement{
-		{
-			AttributeName: aws.String(opt.partitionKeyName),
-			KeyType:       types.KeyTypeHash,
-		},
-	}
-
-	attributeDefinitions := []types.AttributeDefinition{
-		{
-			AttributeName: aws.String(opt.partitionKeyName),
-			AttributeType: types.ScalarAttributeTypeS,
-		},
-	}
+func (c *commonClient) createTable(ctx context.Context, cts createTableSchema, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
+	keySchema, attributeDefinitions := cts()
 
 	createTableInput := &dynamodb.CreateTableInput{
-		TableName:            aws.String(opt.tableName),
+		TableName:            aws.String(c.tableName),
 		KeySchema:            keySchema,
 		BillingMode:          opt.billingMode,
 		AttributeDefinitions: attributeDefinitions,
