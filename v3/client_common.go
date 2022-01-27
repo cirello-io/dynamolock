@@ -531,8 +531,13 @@ func (c *commonClient) putLockItemAndStartSessionMonitor(
 		return nil, parseDynamoDBError(err, "cannot store lock item: lock already acquired by other client")
 	}
 
+	releaseLock := func(ctx context.Context, lock *Lock) error {
+		_, err := c.ReleaseLock(ctx, lock)
+		return err
+	}
+
 	lockItem := &Lock{
-		client:               c,
+		releaseLock:          releaseLock,
 		partitionKey:         partitionKey,
 		data:                 newLockData,
 		deleteLockOnRelease:  deleteLockOnRelease,
@@ -609,8 +614,13 @@ func (c *commonClient) createLockItem(opt getLockOptions, item map[string]types.
 		}
 	}
 
+	releaseLock := func(ctx context.Context, lock *Lock) error {
+		_, err := c.ReleaseLock(ctx, lock)
+		return err
+	}
+
 	lockItem := &Lock{
-		client:               c,
+		releaseLock:          releaseLock,
 		partitionKey:         opt.partitionKey,
 		data:                 data,
 		deleteLockOnRelease:  opt.deleteLockOnRelease,

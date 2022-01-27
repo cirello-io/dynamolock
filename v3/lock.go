@@ -25,11 +25,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+type releaseLockCallback func(context.Context, *Lock) error
+
 // Lock item properly speaking.
 type Lock struct {
 	semaphore sync.Mutex
 
-	client       *commonClient
+	releaseLock  releaseLockCallback
 	partitionKey string
 
 	data                []byte
@@ -54,12 +56,11 @@ func (l *Lock) Data() []byte {
 
 // Close releases the lock.
 func (l *Lock) Close() error {
-	if l != nil && l.client != nil {
+	if l != nil && l.releaseLock != nil {
 		if l.IsExpired() {
 			return ErrLockAlreadyReleased
 		}
-		_, err := l.client.ReleaseLock(context.Background(), l)
-		return err
+		return l.releaseLock(context.Background(), l)
 	}
 	return ErrCannotReleaseNullLock
 }
