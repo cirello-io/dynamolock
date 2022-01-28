@@ -75,16 +75,15 @@ type commonClient struct {
 }
 
 const (
-	defaultPartitionKeyName = "key"
-	defaultLeaseDuration    = 20 * time.Second
-	defaultHeartbeatPeriod  = 5 * time.Second
+	defaultLeaseDuration   = 20 * time.Second
+	defaultHeartbeatPeriod = 5 * time.Second
 )
 
-func newCommon(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*commonClient, error) {
+func newCommon(dynamoDB DynamoDBClient, tableName, partitionKeyName string, opts ...ClientOption) (*commonClient, error) {
 	c := &commonClient{
 		dynamoDB:         dynamoDB,
 		tableName:        tableName,
-		partitionKeyName: defaultPartitionKeyName,
+		partitionKeyName: partitionKeyName,
 		leaseDuration:    defaultLeaseDuration,
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),
@@ -112,11 +111,6 @@ func newCommon(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) 
 
 // ClientOption reconfigure the lock client creation.
 type ClientOption func(*commonClient)
-
-// WithPartitionKeyName defines the key name used for asserting keys uniqueness.
-func WithPartitionKeyName(s string) ClientOption {
-	return func(c *commonClient) { c.partitionKeyName = s }
-}
 
 // WithOwnerName changes the owner linked to the client, and by consequence to
 // locks.

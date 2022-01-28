@@ -88,12 +88,11 @@ func TestClientBasicFlow(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +145,7 @@ func TestClientBasicFlow(t *testing.T) {
 	}
 
 	c2, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#2"),
@@ -184,11 +183,10 @@ func TestReadLockContent(t *testing.T) {
 	t.Run("standard load", func(t *testing.T) {
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
 		c, err := dynamolock.New(svc,
-			"locks",
+			"locks", "key",
 			dynamolock.WithLeaseDuration(3*time.Second),
 			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#1"),
-			dynamolock.WithPartitionKeyName("key"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -218,7 +216,7 @@ func TestReadLockContent(t *testing.T) {
 		}
 
 		c2, err := dynamolock.New(svc,
-			"locks",
+			"locks", "key",
 			dynamolock.WithLeaseDuration(3*time.Second),
 			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#2"),
@@ -241,11 +239,10 @@ func TestReadLockContent(t *testing.T) {
 	t.Run("cached load", func(t *testing.T) {
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
 		c, err := dynamolock.New(svc,
-			"locks",
+			"locks", "key",
 			dynamolock.WithLeaseDuration(3*time.Second),
 			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContentCachedLoad#1"),
-			dynamolock.WithPartitionKeyName("key"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -282,11 +279,10 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#1"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -317,7 +313,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#2"),
@@ -342,11 +338,10 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#1"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -378,7 +373,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#2"),
@@ -403,7 +398,7 @@ func TestInvalidLeaseHeartbeatRation(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	_, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(1*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 	)
@@ -416,11 +411,10 @@ func TestFailIfLocked(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("FailIfLocked#1"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -449,11 +443,10 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -527,11 +520,10 @@ func TestDeleteLockOnRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestDeleteLockOnRelease#1"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -578,12 +570,11 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestCustomRefreshPeriod#1"),
 		dynamolock.WithLogger(logger),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -613,12 +604,11 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestCustomAdditionalTimeToWaitForLock#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -657,12 +647,11 @@ func TestClientClose(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientClose#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal("cannot create the client:", err)
@@ -725,12 +714,11 @@ func TestInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -787,12 +775,11 @@ func TestClientWithDataAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -842,12 +829,11 @@ func TestHeartbeatLoss(t *testing.T) {
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	heartbeatPeriod := 5 * time.Second
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(1*time.Hour),
 		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
 		dynamolock.WithOwnerName("TestHeartbeatLoss#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -905,12 +891,11 @@ func TestHeartbeatError(t *testing.T) {
 
 	heartbeatPeriod := 2 * time.Second
 	c, err := dynamolock.New(svc,
-		"locksHBError",
+		"locksHBError", "key",
 		dynamolock.WithLeaseDuration(1*time.Hour),
 		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
 		dynamolock.WithOwnerName("TestHeartbeatError#1"),
 		dynamolock.WithLogger(logger),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		fatal(err)
@@ -980,7 +965,7 @@ func TestBadDynamoDB(t *testing.T) {
 	t.Parallel()
 	t.Run("get", func(t *testing.T) {
 		svc := &fakeDynamoDB{}
-		c, err := dynamolock.New(svc, "locksHBError")
+		c, err := dynamolock.New(svc, "locksHBError", "key")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -990,7 +975,7 @@ func TestBadDynamoDB(t *testing.T) {
 	})
 	t.Run("acquire", func(t *testing.T) {
 		svc := &fakeDynamoDB{}
-		c, err := dynamolock.New(svc, "locksHBError")
+		c, err := dynamolock.New(svc, "locksHBError", "key")
 		if err != nil {
 			t.Fatal(err)
 		}

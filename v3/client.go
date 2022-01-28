@@ -28,8 +28,8 @@ import (
 type Client struct{ *commonClient }
 
 // New creates a new dynamoDB based distributed lock client.
-func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Client, error) {
-	commonClient, err := newCommon(dynamoDB, tableName, opts...)
+func New(dynamoDB DynamoDBClient, tableName, partitionKeyName string, opts ...ClientOption) (*Client, error) {
+	commonClient, err := newCommon(dynamoDB, tableName, partitionKeyName, opts...)
 
 	if err != nil {
 		return nil, err

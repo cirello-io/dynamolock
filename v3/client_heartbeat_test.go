@@ -38,7 +38,7 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 	}()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.DisableHeartbeat(),
 	)
 	if err != nil {
@@ -51,11 +51,10 @@ func TestHeartbeatHandover(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestHeartbeatHandover#1"),
 		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +99,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}()
 
 	c2, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestHeartbeatHandover#2"),
@@ -141,11 +140,10 @@ func TestHeartbeatDataOps(t *testing.T) {
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	newClient := func() (*dynamolock.Client, error) {
 		return dynamolock.New(svc,
-			"locks",
+			"locks", "key",
 			dynamolock.WithLeaseDuration(3*time.Second),
 			dynamolock.WithOwnerName("TestHeartbeatDataOps#1"),
 			dynamolock.DisableHeartbeat(),
-			dynamolock.WithPartitionKeyName("key"),
 		)
 	}
 	c, err := newClient()

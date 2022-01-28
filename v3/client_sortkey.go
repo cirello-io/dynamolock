@@ -32,12 +32,12 @@ type ClientWithSortKey struct {
 }
 
 // NewWithSortKey creates a new dynamoDB based distributed lock client.
-func NewWithSortKey(dynamoDB DynamoDBClient, tableName, sortKeyName string, opts ...ClientOption) (*ClientWithSortKey, error) {
+func NewWithSortKey(dynamoDB DynamoDBClient, tableName, partitionKeyName, sortKeyName string, opts ...ClientOption) (*ClientWithSortKey, error) {
 	if sortKeyName == "" {
 		return nil, errors.New("a sortKeyName must be supplied; use `Client` if you don't want a sort key")
 	}
 
-	commonClient, err := newCommon(dynamoDB, tableName, opts...)
+	commonClient, err := newCommon(dynamoDB, tableName, partitionKeyName, opts...)
 
 	if err != nil {
 		return nil, err
