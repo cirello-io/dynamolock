@@ -52,11 +52,10 @@ any locks in the internal lock map after a client is closed.
 func TestCloseRace(t *testing.T) {
 	mockSvc := &mockDynamoDBClient{}
 	// Most of the input into New isn't relevant since we're mocking
-	lockClient, err := New(mockSvc, "locksCloseRace",
+	lockClient, err := New(mockSvc, "locksCloseRace", "key",
 		WithLeaseDuration(3*time.Second),
 		WithHeartbeatPeriod(100*time.Millisecond),
 		WithOwnerName("CloseRace"),
-		WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)

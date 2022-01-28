@@ -32,11 +32,10 @@ func TestSessionMonitor(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitor#1"),
 		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -84,11 +83,10 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks-monitor",
+		"locks-monitor", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitorRemoveBeforeExpiration#1"),
 		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -135,11 +133,10 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
-		"locks",
+		"locks", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithOwnerName("TestSessionMonitorFullCycle#1"),
 		dynamolock.DisableHeartbeat(),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)

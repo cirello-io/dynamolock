@@ -33,11 +33,10 @@ func TestIssue56(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	lockClient, err := dynamolock.New(svc,
-		"locksIssue56",
+		"locksIssue56", "key",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(100*time.Millisecond),
 		dynamolock.WithOwnerName("TestIssue56"),
-		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
