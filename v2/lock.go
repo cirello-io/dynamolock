@@ -102,6 +102,13 @@ func (l *Lock) OwnerName() string {
 	return l.ownerName
 }
 
+func (l *Lock) RecordVersionNumber() string {
+	if l == nil {
+		return ""
+	}
+	return l.recordVersionNumber
+}
+
 // AdditionalAttributes returns the lock's additional data stored during
 // acquisition.
 func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {

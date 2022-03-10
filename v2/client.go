@@ -945,7 +945,7 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 		return &Lock{}, nil
 	}
 
-	lockItem.updateRVN("", time.Time{}, lockItem.leaseDuration)
+	lockItem.updateRVN(lockItem.recordVersionNumber, time.Time{}, lockItem.leaseDuration)
 	return lockItem, nil
 }
 
