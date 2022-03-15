@@ -26,13 +26,27 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
+// HeartbeatData returns the desired content for a Lock during a heartbeat.
+type HeartbeatData interface {
+	// Get returns the desired data content for a given Lock.
+	Get(lockItem *Lock) []byte
+}
+
+type staticHeartbeatData struct {
+	val []byte
+}
+
+func (s *staticHeartbeatData) Get(_ *Lock) []byte {
+	return s.val
+}
+
 // SendHeartbeatOption allows to proceed with Lock content changes in the
 // heartbeat cycle.
 type SendHeartbeatOption func(*sendHeartbeatOptions)
 
 type sendHeartbeatOptions struct {
 	lockItem   *Lock
-	data       []byte
+	data       HeartbeatData
 	deleteData bool
 }
 
@@ -43,11 +57,21 @@ func DeleteData() SendHeartbeatOption {
 	}
 }
 
-// ReplaceHeartbeatData overrides the content of the Lock in the heartbeat cycle.
+// ReplaceHeartbeatData overrides the content of the Lock with a static value
+// in the heartbeat cycle.
 func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 	return func(o *sendHeartbeatOptions) {
 		o.deleteData = false
-		o.data = data
+		o.data = &staticHeartbeatData{val: data}
+	}
+}
+
+// WithHeartbeatData overrides the content of the Lock with the value returned
+// by the dynamic HeartbeatData every heartbeat cycle.
+func WithHeartbeatData(hd HeartbeatData) SendHeartbeatOption {
+	return func(o *sendHeartbeatOptions) {
+		o.deleteData = false
+		o.data = hd
 	}
 }
 
@@ -105,8 +129,11 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 
 	if options.deleteData {
 		update.Remove(dataAttr)
-	} else if len(options.data) > 0 {
-		update.Set(dataAttr, expression.Value(options.data))
+	} else if options.data != nil {
+		data := options.data.Get(lockItem)
+		if len(data) > 0 {
+			update.Set(dataAttr, expression.Value(data))
+		}
 	}
 	updateExpr, _ := expression.NewBuilder().WithCondition(cond).WithUpdate(update).Build()
 

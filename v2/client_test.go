@@ -903,6 +903,62 @@ func TestHeartbeatLoss(t *testing.T) {
 	}
 }
 
+func TestWithHeartbeatOptions(t *testing.T) {
+	t.Parallel()
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	heartbeatPeriod := 5 * time.Second
+	c, err := dynamolock.New(
+		svc,
+		"locks",
+		dynamolock.WithLeaseDuration(1*time.Hour),
+		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
+		dynamolock.WithHeartbeatOptions(dynamolock.ReplaceHeartbeatData([]byte("replaced data"))),
+		dynamolock.WithOwnerName("TestWithHeartbeatOptions"),
+		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "heartbeatOptions"
+	lockItem, err := c.AcquireLock(lockName, dynamolock.WithData([]byte("original data")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lockItem.Close()
+
+	// Wait for a heartbeat and check the contents
+	time.Sleep(heartbeatPeriod)
+	c2, err := dynamolock.New(
+		svc,
+		"locks",
+		dynamolock.WithLeaseDuration(1*time.Hour),
+		dynamolock.WithOwnerName("TestHeartbeatOptions"),
+		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotLockItem, err := c2.Get(lockName)
+	if err != nil {
+		t.Fatal("cannot get lock: ", err)
+	}
+	if !bytes.Equal(gotLockItem.Data(), []byte("replaced data")) {
+		t.Error("data not replaced on heartbeat")
+	}
+}
+
 func TestHeartbeatError(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))

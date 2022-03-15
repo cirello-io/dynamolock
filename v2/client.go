@@ -83,6 +83,7 @@ type Client struct {
 
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
+	heartbeatOptions            []SendHeartbeatOption
 	ownerName                   string
 	locks                       sync.Map
 	sessionMonitorCancellations sync.Map
@@ -159,6 +160,11 @@ func WithLeaseDuration(d time.Duration) ClientOption {
 // lease.
 func WithHeartbeatPeriod(d time.Duration) ClientOption {
 	return func(c *Client) { c.heartbeatPeriod = d }
+}
+
+// WithHeartbeatOptions defines additional options for automatic heartbeats.
+func WithHeartbeatOptions(o ...SendHeartbeatOption) ClientOption {
+	return func(c *Client) { c.heartbeatOptions = o }
 }
 
 // DisableHeartbeat disables automatic hearbeats. Use SendHeartbeat to freshen
@@ -672,7 +678,7 @@ func (c *Client) heartbeat(ctx context.Context) {
 	for range tick.C {
 		c.locks.Range(func(_ interface{}, value interface{}) bool {
 			lockItem := value.(*Lock)
-			if err := c.SendHeartbeat(lockItem); err != nil {
+			if err := c.SendHeartbeat(lockItem, c.heartbeatOptions...); err != nil {
 				c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
 			}
 			return true

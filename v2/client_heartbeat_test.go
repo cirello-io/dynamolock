@@ -225,6 +225,53 @@ func TestHeartbeatDataOps(t *testing.T) {
 		}
 	})
 
+	t.Run("dynamic data on heartbeat", func(t *testing.T) {
+		const lockName = "dynamic-data-on-heartbeat"
+		data := []byte("some content a")
+		lockedItem, err := c.AcquireLock(lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Log("lock content:", string(lockedItem.Data()))
+		if got := string(lockedItem.Data()); string(data) != got {
+			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
+		}
+
+		c2, err := newClient()
+		if err != nil {
+			t.Fatal("cannot open second lock client")
+		}
+		dataReplacer := &mockHeartbeatData{
+			vals: [][]byte{
+				[]byte("some content b"),
+				[]byte("some content c"),
+			},
+		}
+
+		if err := c.SendHeartbeat(lockedItem, dynamolock.WithHeartbeatData(dataReplacer)); err != nil {
+			t.Fatal("cannot send first heartbeat: ", err)
+		}
+		gotItem1, err := c2.Get(lockName)
+		if err != nil {
+			t.Fatal("cannot lock: ", err)
+		}
+		if !bytes.Equal(gotItem1.Data(), dataReplacer.vals[0]) {
+			t.Error("data not replaced on heartbeat")
+		}
+
+		if err := c.SendHeartbeat(lockedItem, dynamolock.WithHeartbeatData(dataReplacer)); err != nil {
+			t.Fatal("cannot send second heartbeat: ", err)
+		}
+		gotItem2, err := c2.Get(lockName)
+		if err != nil {
+			t.Fatal("cannot lock: ", err)
+		}
+		if !bytes.Equal(gotItem2.Data(), dataReplacer.vals[1]) {
+			t.Error("data not replaced on second heartbeat")
+		}
+	})
+
 	t.Run("racy heartbeats", func(t *testing.T) {
 		const lockName = "racy-heartbeats"
 		lockedItemAlpha, err := c.AcquireLock(lockName)
@@ -253,4 +300,15 @@ func TestHeartbeatDataOps(t *testing.T) {
 			t.Log("send heartbeat for lockedItemAlpha:", err)
 		}
 	})
+}
+
+type mockHeartbeatData struct {
+	vals    [][]byte
+	callNum uint
+}
+
+func (m *mockHeartbeatData) Get(_ *dynamolock.Lock) []byte {
+	ret := m.vals[m.callNum]
+	m.callNum++
+	return ret
 }
