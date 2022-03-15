@@ -7,7 +7,6 @@
 [![Build status (v2)](https://badge.buildkite.com/503d4c5c2e58c5d5254e73ce7f532f054fad16adc4530a24b5.svg)](https://buildkite.com/cirello-io/dynamolock)
 
 ** dynamolock v1 is now maintenance only as Amazon promoted their Go SDK v2 to GA, please use the dynamolock/v2. **
-** dynamolock v3 is now in progress. **
 
 This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
 

@@ -1,2 +1,0 @@
-* TODO Remove CreateTable
-* TODO Iterate Sort Keys design
