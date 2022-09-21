@@ -74,7 +74,7 @@ func main() {
 	defer c.Close()
 
 	log.Println("ensuring table exists")
-	_, err := c.CreateTable("locks",
+	_, err = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
