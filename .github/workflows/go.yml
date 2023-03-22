@@ -1,0 +1,29 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 'stable'
+
+    - name: Download DynamoDB Local
+      run: |
+        cd v2/
+        make local-dynamodb
+
+    - name: Test
+      run: |
+        cd v2/
+        go test -v
