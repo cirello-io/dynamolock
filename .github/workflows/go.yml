@@ -19,11 +19,12 @@ jobs:
         go-version: 'stable'
 
     - name: Download DynamoDB Local
+      working-directory: v2/
       run: |
-        cd v2/
+        set -e
         make local-dynamodb
 
     - name: Test
+      working-directory: v2/
       run: |
-        cd v2/
         go test -v
