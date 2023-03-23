@@ -1045,7 +1045,9 @@ func (c *Client) lockSessionMonitorChecker(ctx context.Context,
 			case <-ctx.Done():
 				return
 			default:
+				lock.semaphore.Lock()
 				timeUntilDangerZone, err := lock.timeUntilDangerZoneEntered()
+				lock.semaphore.Unlock()
 				if err != nil {
 					c.logger.Println(ctx, "cannot run session monitor because", err)
 					return
