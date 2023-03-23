@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -45,10 +44,11 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic("cannot execute tests without Java")
 	}
-	_ = os.Remove(filepath.Join("local-dynamodb", "shared-local-instance.db")) // unconditionally remove state file
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, javaPath, "-Djava.library.path=./DynamoDBLocal_lib", "-jar", "DynamoDBLocal.jar", "-sharedDb")
+	cmd := exec.CommandContext(ctx, javaPath, "-Djava.library.path=./DynamoDBLocal_lib", "-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory")
 	cmd.Dir = "local-dynamodb"
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	if err := cmd.Start(); err != nil {
 		panic("cannot start local dynamodb:" + err.Error())
 	}
@@ -61,6 +61,7 @@ func TestMain(m *testing.M) {
 		c.Close()
 		break
 	}
+	time.Sleep(1 * time.Second)
 	exitCode := m.Run()
 	cancel()
 	cmd.Wait()

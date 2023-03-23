@@ -121,6 +121,11 @@ func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {
 // "danger zone". It returns false if the lock has not been released and the
 // lock has not yet entered the "danger zone"
 func (l *Lock) IsAlmostExpired() (bool, error) {
+	if l == nil {
+		return false, ErrLockAlreadyReleased
+	}
+	l.semaphore.Lock()
+	defer l.semaphore.Unlock()
 	t, err := l.timeUntilDangerZoneEntered()
 	if err != nil {
 		return false, err
@@ -143,7 +148,7 @@ func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
 	if l.sessionMonitor == nil {
 		return 0, ErrSessionMonitorNotSet
 	}
-	if l.IsExpired() {
+	if l.isExpired() {
 		return 0, ErrLockAlreadyReleased
 	}
 	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
