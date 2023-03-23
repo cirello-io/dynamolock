@@ -16,7 +16,11 @@ limitations under the License.
 
 package dynamolock
 
-import "testing"
+import (
+	"sync"
+	"testing"
+	"time"
+)
 
 // RVN exposes internal record version number for testing only.
 func (l *Lock) RVN() string {
@@ -35,4 +39,42 @@ func TestExpiredNilLock(t *testing.T) {
 	if !l.IsExpired() {
 		t.Fatal("nil locks should report as expired")
 	}
+}
+
+func TestLookupTimeAccess(t *testing.T) {
+	stopChan := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	l := &Lock{}
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stopChan:
+				return
+			default:
+			}
+
+			l.updateRVN("1", time.Now(), 30*time.Second)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stopChan:
+				return
+			default:
+			}
+
+			l.timeUntilDangerZoneEntered()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+	close(stopChan)
+	wg.Wait()
 }

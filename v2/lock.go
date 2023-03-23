@@ -37,6 +37,7 @@ type Lock struct {
 	isReleased          bool
 	sessionMonitor      *sessionMonitor
 
+	lookupSemaphore      sync.Mutex
 	lookupTime           time.Time
 	recordVersionNumber  string
 	leaseDuration        time.Duration
@@ -85,12 +86,12 @@ func (l *Lock) isExpired() bool {
 	if l.isReleased {
 		return true
 	}
-	return time.Since(l.lookupTime) > l.leaseDuration
+	return time.Since(l.getLookupTime()) > l.leaseDuration
 }
 
 func (l *Lock) updateRVN(rvn string, lastUpdate time.Time, leaseDuration time.Duration) {
 	l.recordVersionNumber = rvn
-	l.lookupTime = lastUpdate
+	l.storeLookupTime(lastUpdate)
 	l.leaseDuration = leaseDuration
 }
 
@@ -146,5 +147,17 @@ func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
 	if l.IsExpired() {
 		return 0, ErrLockAlreadyReleased
 	}
-	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
+	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.getLookupTime()), nil
+}
+
+func (l *Lock) storeLookupTime(newTime time.Time) {
+	l.lookupSemaphore.Lock()
+	defer l.lookupSemaphore.Unlock()
+	l.lookupTime = newTime
+}
+
+func (l *Lock) getLookupTime() time.Time {
+	l.lookupSemaphore.Lock()
+	defer l.lookupSemaphore.Unlock()
+	return l.lookupTime
 }
