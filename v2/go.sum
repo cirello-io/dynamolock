@@ -1,7 +1,7 @@
 github.com/aws/aws-sdk-go-v2 v1.18.0 h1:882kkTpSFhdgYRKVZ/VCgf7sd0ru57p2JCxz4/oN5RY=
 github.com/aws/aws-sdk-go-v2 v1.18.0/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
-github.com/aws/aws-sdk-go-v2/credentials v1.13.21 h1:VRiXnPEaaPeGeoFcXvMZOB5K/yfIXOYE3q97Kgb0zbU=
-github.com/aws/aws-sdk-go-v2/credentials v1.13.21/go.mod h1:90Dk1lJoMyspa/EDUrldTxsPns0wn6+KpRKpdAWc0uA=
+github.com/aws/aws-sdk-go-v2/credentials v1.13.22 h1:Hp9rwJS4giQ48xqonRV/s7QcDf/wxF6UY7osRmBabvI=
+github.com/aws/aws-sdk-go-v2/credentials v1.13.22/go.mod h1:BfNcm6A9nSd+bzejDcMJ5RE+k6WbkCwWkQil7q4heRk=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.23 h1:y9Sz8I/XPG6IkjiMjqlLVZ+es+pOLqkSZDc+E7Grlk0=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.23/go.mod h1:BTAaBBQPLJwtxIfYx1NoN0BOr7yVQU9D2+R7gRqxI14=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.4.50 h1:pXnLHwGpdxqs0fj0NFEVKORaWmxR0L87QqUQtT4DZp4=
@@ -21,9 +21,9 @@ github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11/go.mod h1:
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.27 h1:QmyPCRZNMR1pFbiOi9kBZWZuKrKB9LD4cxltxQk4tNE=
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.27/go.mod h1:DfuVY36ixXnsG+uTqnoLWunXAKJ4qjccoFrXUPpj+hs=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.27/go.mod h1:EOwBD4J4S5qYszS5/3DpkejfuK+Z5/1uzICfPaZLtqw=
-github.com/aws/aws-sdk-go-v2/service/sso v1.12.9/go.mod h1:ouy2P4z6sJN70fR3ka3wD3Ro3KezSxU6eKGQI2+2fjI=
-github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.9/go.mod h1:AFvkxc8xfBe8XA+5St5XIHHrQQtkxqrRincx4hmMHOk=
-github.com/aws/aws-sdk-go-v2/service/sts v1.18.10/go.mod h1:BgQOMsg8av8jset59jelyPW7NoZcZXLVpDsXunGDrk8=
+github.com/aws/aws-sdk-go-v2/service/sso v1.12.10/go.mod h1:ouy2P4z6sJN70fR3ka3wD3Ro3KezSxU6eKGQI2+2fjI=
+github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.10/go.mod h1:AFvkxc8xfBe8XA+5St5XIHHrQQtkxqrRincx4hmMHOk=
+github.com/aws/aws-sdk-go-v2/service/sts v1.18.11/go.mod h1:BgQOMsg8av8jset59jelyPW7NoZcZXLVpDsXunGDrk8=
 github.com/aws/smithy-go v1.13.5 h1:hgz0X/DX0dGqTYpGALqXJoRKRj5oQ7150i5FdTePzO8=
 github.com/aws/smithy-go v1.13.5/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
