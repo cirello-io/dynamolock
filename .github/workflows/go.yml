@@ -2,32 +2,36 @@ name: Go
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   schedule:
-    - cron: '0 0 * * *'
-
+    - cron: "0 0 * * *"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Setup Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 'stable'
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "stable"
 
-    - name: Download DynamoDB Local
-      working-directory: v2/
-      run: |
-        set -e
-        make local-dynamodb
+      - name: Setup golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          skip-cache: true
 
-    - name: Test
-      working-directory: v2/
-      run: |
-        go test -v
+      - name: Download DynamoDB Local
+        working-directory: v2/
+        run: |
+          set -e
+          make local-dynamodb
+
+      - name: Test
+        working-directory: v2/
+        run: |
+          go test -v

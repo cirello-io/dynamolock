@@ -44,7 +44,7 @@ func TestIssue56(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lockClient.CreateTable("locksIssue56",
+	_, _ = lockClient.CreateTable("locksIssue56",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -75,7 +75,7 @@ func TestIssue56(t *testing.T) {
 				switch err {
 				case nil:
 					count++
-					lockClient.ReleaseLock(lock)
+					_, _ = lockClient.ReleaseLock(lock)
 					return
 				default:
 					var errTimeout *dynamolock.TimeoutError

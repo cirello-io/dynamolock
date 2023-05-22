@@ -18,7 +18,6 @@ package dynamolock
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -72,7 +71,7 @@ func TestCloseRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lockClient.AcquireLock(strconv.Itoa(si))
+			_, _ = lockClient.AcquireLock(strconv.Itoa(si))
 		}()
 	}
 
@@ -92,7 +91,7 @@ func TestCloseRace(t *testing.T) {
 	})
 
 	if length > 0 {
-		t.Fatal(fmt.Sprintf("lock client still has %d locks after Close()", length))
+		t.Fatalf("lock client still has %d locks after Close()", length)
 	}
 }
 

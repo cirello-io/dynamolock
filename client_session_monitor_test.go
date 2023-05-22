@@ -45,7 +45,7 @@ func TestSessionMonitor(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -102,7 +102,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks-monitor",
+	_, _ = c.CreateTable("locks-monitor",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -158,7 +158,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
