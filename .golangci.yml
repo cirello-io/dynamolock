@@ -1,4 +1,6 @@
 linters:
+  disable:
+    - depguard
   enable:
     - unused
     - ineffassign
