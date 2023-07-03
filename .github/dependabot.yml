@@ -2,5 +2,7 @@ version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/v2"
+    allow:
+      - dependency-type: "all"
     schedule:
       interval: "daily"
