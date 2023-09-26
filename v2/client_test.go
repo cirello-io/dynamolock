@@ -64,18 +64,16 @@ func TestMain(m *testing.M) {
 	time.Sleep(1 * time.Second)
 	exitCode := m.Run()
 	cancel()
-	cmd.Wait()
+	_ = cmd.Wait()
 	os.Exit(exitCode)
 }
 
-func defaultConfig(t *testing.T) aws.Config {
+func defaultConfig(_ *testing.T) aws.Config {
 	return aws.Config{
 		Region: "us-west-2",
-		EndpointResolver: aws.EndpointResolverFunc(
-			func(service, region string) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: "http://localhost:8000/"}, nil
-			},
-		),
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{URL: "http://localhost:8000/"}, nil
+		}),
 		Credentials: credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
 				AccessKeyID:     "fakeMyKeyId",
@@ -101,7 +99,7 @@ func TestClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -165,7 +163,7 @@ func TestClientBasicFlow(t *testing.T) {
 		t.Fatal("expected to fail to grab the lock")
 	}
 
-	c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
+	_, _ = c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
 
 	lockedItem3, err := c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
@@ -198,7 +196,7 @@ func TestReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		c.CreateTable("locks",
+		_, _ = c.CreateTable("locks",
 			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
@@ -256,7 +254,7 @@ func TestReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		c.CreateTable("locks",
+		_, _ = c.CreateTable("locks",
 			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(5),
 				WriteCapacityUnits: aws.Int64(5),
@@ -298,7 +296,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -359,7 +357,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -433,7 +431,7 @@ func TestFailIfLocked(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -467,7 +465,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -546,7 +544,7 @@ func TestDeleteLockOnRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -599,7 +597,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -613,7 +611,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	}
 	defer lockedItem.Close()
 
-	c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
+	_, _ = c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
 		t.Fatal("did not honor refreshPeriod")
 	}
@@ -635,7 +633,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -650,7 +648,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 	go func() {
 		for i := 0; i < 3; i++ {
-			c.SendHeartbeat(l)
+			_ = c.SendHeartbeat(l)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -680,7 +678,7 @@ func TestClientClose(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -749,7 +747,7 @@ func TestInvalidReleases(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -812,7 +810,7 @@ func TestClientWithDataAfterRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -868,7 +866,7 @@ func TestHeartbeatLoss(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),

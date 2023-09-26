@@ -71,7 +71,7 @@ func TestCloseRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lockClient.AcquireLock(strconv.Itoa(si))
+			_, _ = lockClient.AcquireLock(strconv.Itoa(si))
 		}()
 	}
 

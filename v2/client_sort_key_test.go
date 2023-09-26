@@ -64,7 +64,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("spock",
@@ -123,7 +123,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 		t.Fatal("expected to fail to grab the lock")
 	}
 
-	c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
+	_, _ = c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
 
 	lockedItem3, err := c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
@@ -157,7 +157,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		createSortKeyTable(c, t)
+		_, _ = createSortKeyTable(c, t)
 
 		data := []byte("some content a")
 		lockedItem, err := c.AcquireLock("mccoy",
@@ -211,7 +211,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		createSortKeyTable(c, t)
+		_, _ = createSortKeyTable(c, t)
 
 		data := []byte("hello janice")
 		lockedItem, err := c.AcquireLock("janice",
@@ -248,7 +248,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	data := []byte("some content for scotty")
 	lockedItem, err := c.AcquireLock("scotty",
@@ -305,7 +305,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	data := []byte("some content for uhura")
 	lockedItem, err := c.AcquireLock("uhura",
@@ -376,7 +376,7 @@ func TestSortKeyFailIfLocked(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	_, err = c.AcquireLock("failIfLocked")
 	if err != nil {
@@ -405,7 +405,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	t.Run("good attributes", func(t *testing.T) {
 		lockedItem, err := c.AcquireLock(
@@ -479,7 +479,7 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	const lockName = "delete-lock-on-release"
 	data := []byte("some content a")
@@ -527,7 +527,7 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	lockedItem, err := c.AcquireLock("custom-refresh-period")
 	if err != nil {
@@ -535,7 +535,7 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	}
 	defer lockedItem.Close()
 
-	c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
+	_, _ = c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
 		t.Fatal("did not honor refreshPeriod")
 	}
@@ -558,7 +558,7 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	t.Log("acquire lock")
 	l, err := c.AcquireLock("custom-additional-time-to-wait")
@@ -567,7 +567,7 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 	go func() {
 		for i := 0; i < 3; i++ {
-			c.SendHeartbeat(l)
+			_ = c.SendHeartbeat(l)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -598,7 +598,7 @@ func TestSortKeyClientClose(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	t.Log("acquiring locks")
 	lockItem1, err := c.AcquireLock("bulkClose1")
@@ -662,7 +662,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	t.Run("release nil lock", func(t *testing.T) {
 		var l *dynamolock.Lock
@@ -720,7 +720,7 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	const lockName = "lockNoData"
 
@@ -762,7 +762,7 @@ func TestSortKeyHeartbeatLoss(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(c, t)
 
 	const lockName = "heartbeatLoss"
 

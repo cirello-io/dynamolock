@@ -274,7 +274,7 @@ func WithAdditionalAttributes(attr map[string]types.AttributeValue) AcquireLockO
 //
 // Consider an example which uses this mechanism for leader election. One
 // way to make use of this SessionMonitor is to register a callback that
-// kills the instance in case the leader's lock enters the danger zone:
+// kills the instance in case the leader's lock enters the danger zone.
 func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOption {
 	return func(opt *acquireLockOptions) {
 		opt.sessionMonitor = &sessionMonitor{
@@ -751,7 +751,7 @@ func WithTags(tags []types.Tag) CreateTableOption {
 }
 
 // WithProvisionedThroughput changes the billing mode of DynamoDB
-// and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request
+// and tells DynamoDB to operate in a provisioned throughput mode instead of pay-per-request.
 func WithProvisionedThroughput(provisionedThroughput *types.ProvisionedThroughput) CreateTableOption {
 	return func(opt *createDynamoDBTableOptions) {
 		opt.billingMode = types.BillingModeProvisioned
