@@ -21,7 +21,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/big"
 	"sync"
@@ -114,7 +114,7 @@ func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Clie
 		heartbeatPeriod:  defaultHeartbeatPeriod,
 		ownerName:        randString(32),
 		logger: &contextLoggerAdapter{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		},
 		stopHeartbeat: func() {},
 	}
