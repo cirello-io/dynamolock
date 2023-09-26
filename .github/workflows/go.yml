@@ -29,4 +29,4 @@ jobs:
       - name: Test
         working-directory: v2/
         run: |
-          go test -v
+          make test
