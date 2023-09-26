@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"errors"
 	"testing"
 
 	"cirello.io/dynamolock/v2"
@@ -34,7 +35,7 @@ func TestNilLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	if _, err := l.IsAlmostExpired(); err != dynamolock.ErrLockAlreadyReleased {
+	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Fatal("nil locks should report error on testing for closing expiration")
 	}
 	l.Close()
@@ -52,7 +53,7 @@ func TestEmptyLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	if _, err := l.IsAlmostExpired(); err != dynamolock.ErrSessionMonitorNotSet {
+	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrSessionMonitorNotSet) {
 		t.Fatalf("nil locks should report error on testing for closing expiration: %v", err)
 	}
 	l.Close()

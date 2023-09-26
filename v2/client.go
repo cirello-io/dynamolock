@@ -409,7 +409,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 		item[attrData] = bytesAttrValue(newLockData)
 	}
 
-	//if the existing lock does not exist or exists and is released
+	// if the existing lock does not exist or exists and is released
 	if existingLock == nil || existingLock.isReleased {
 		l, err := c.upsertAndMonitorNewOrReleasedLock(
 			ctx,
@@ -431,10 +431,11 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 
 	// we know that we didnt enter the if block above because it returns at the end.
 	// we also know that the existingLock.isPresent() is true
-	if getLockOptions.lockTryingToBeAcquired == nil {
-		//this branch of logic only happens once, in the first iteration of the while loop
-		//lockTryingToBeAcquired only ever gets set to non-null values after this point.
-		//so it is impossible to get in this
+	switch {
+	case getLockOptions.lockTryingToBeAcquired == nil:
+		// this branch of logic only happens once, in the first iteration of the while loop
+		// lockTryingToBeAcquired only ever gets set to non-null values after this point.
+		// so it is impossible to get in this
 		/*
 		 * Someone else has the lock, and they have the lock for LEASE_DURATION time. At this point, we need
 		 * to wait at least LEASE_DURATION milliseconds before we can try to acquire the lock.
@@ -450,7 +451,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			getLockOptions.alreadySleptOnceForOneLeasePeriod = true
 			getLockOptions.millisecondsToWait += existingLock.leaseDuration
 		}
-	} else if getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber && getLockOptions.lockTryingToBeAcquired.isExpired() {
+	case getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber && getLockOptions.lockTryingToBeAcquired.isExpired():
 		/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
 		l, err := c.upsertAndMonitorExpiredLock(
 			ctx,
@@ -467,7 +468,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			}
 		}
 		return l, err
-	} else if getLockOptions.lockTryingToBeAcquired.recordVersionNumber != existingLock.recordVersionNumber {
+	case getLockOptions.lockTryingToBeAcquired.recordVersionNumber != existingLock.recordVersionNumber:
 		/*
 		 * If the version number changed since we last queried the lock, then we need to update
 		 * lockTryingToBeAcquired as the lock has been refreshed since we last checked
@@ -646,7 +647,7 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]types.Attrib
 		var err error
 		parsedLeaseDuration, err = time.ParseDuration(leaseDuration)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse lease duration: %s", err)
+			return nil, fmt.Errorf("cannot parse lease duration: %w", err)
 		}
 	}
 

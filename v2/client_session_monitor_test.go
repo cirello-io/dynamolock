@@ -17,6 +17,7 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -185,7 +186,7 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Second)
-	if ok, err := lockedItem.IsAlmostExpired(); err != dynamolock.ErrLockAlreadyReleased {
+	if ok, err := lockedItem.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Error("lockedItem should be already expired:", ok, err)
 	}
 }

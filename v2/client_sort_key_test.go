@@ -19,6 +19,7 @@ package dynamolock_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -35,7 +36,7 @@ const (
 	sortKeyTable = "locks_sk"
 )
 
-func createSortKeyTable(c *dynamolock.Client, t *testing.T) (*dynamodb.CreateTableOutput, error) {
+func createSortKeyTable(t *testing.T, c *dynamolock.Client) (*dynamodb.CreateTableOutput, error) {
 	t.Helper()
 	return c.CreateTable(sortKeyTable,
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
@@ -64,7 +65,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("spock",
@@ -157,7 +158,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		_, _ = createSortKeyTable(c, t)
+		_, _ = createSortKeyTable(t, c)
 
 		data := []byte("some content a")
 		lockedItem, err := c.AcquireLock("mccoy",
@@ -211,7 +212,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		defer c.Close()
 
 		t.Log("ensuring table exists")
-		_, _ = createSortKeyTable(c, t)
+		_, _ = createSortKeyTable(t, c)
 
 		data := []byte("hello janice")
 		lockedItem, err := c.AcquireLock("janice",
@@ -248,7 +249,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	data := []byte("some content for scotty")
 	lockedItem, err := c.AcquireLock("scotty",
@@ -305,7 +306,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	defer c.Close()
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	data := []byte("some content for uhura")
 	lockedItem, err := c.AcquireLock("uhura",
@@ -376,14 +377,14 @@ func TestSortKeyFailIfLocked(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	_, err = c.AcquireLock("failIfLocked")
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = c.AcquireLock("failIfLocked", dynamolock.FailIfLocked())
-	if e, ok := err.(*dynamolock.LockNotGrantedError); e == nil || !ok {
+	if !isLockNotGrantedError(err) {
 		t.Fatal("expected error (LockNotGrantedError) not found:", err)
 		return
 	}
@@ -405,7 +406,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	t.Run("good attributes", func(t *testing.T) {
 		lockedItem, err := c.AcquireLock(
@@ -479,7 +480,7 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	const lockName = "delete-lock-on-release"
 	data := []byte("some content a")
@@ -527,7 +528,7 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	lockedItem, err := c.AcquireLock("custom-refresh-period")
 	if err != nil {
@@ -558,7 +559,7 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	t.Log("acquire lock")
 	l, err := c.AcquireLock("custom-additional-time-to-wait")
@@ -598,7 +599,7 @@ func TestSortKeyClientClose(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	t.Log("acquiring locks")
 	lockItem1, err := c.AcquireLock("bulkClose1")
@@ -620,27 +621,27 @@ func TestSortKeyClientClose(t *testing.T) {
 	}
 
 	t.Log("close after close")
-	if err := c.Close(); err != dynamolock.ErrClientClosed {
+	if err := c.Close(); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (close after close):", err)
 	}
 	t.Log("heartbeat after close")
-	if err := c.SendHeartbeat(lockItem1); err != dynamolock.ErrClientClosed {
+	if err := c.SendHeartbeat(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (heartbeat after close):", err)
 	}
 	t.Log("release after close")
-	if _, err := c.ReleaseLock(lockItem1); err != dynamolock.ErrClientClosed {
+	if _, err := c.ReleaseLock(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (release after close):", err)
 	}
 	t.Log("get after close")
-	if _, err := c.Get("bulkClose1"); err != dynamolock.ErrClientClosed {
+	if _, err := c.Get("bulkClose1"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (get after close):", err)
 	}
 	t.Log("acquire after close")
-	if _, err := c.AcquireLock("acquireAfterClose"); err != dynamolock.ErrClientClosed {
+	if _, err := c.AcquireLock("acquireAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (acquire after close):", err)
 	}
 	t.Log("create table after close")
-	if _, err := c.CreateTable("createTableAfterClose"); err != dynamolock.ErrClientClosed {
+	if _, err := c.CreateTable("createTableAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (create table after close):", err)
 	}
 }
@@ -662,7 +663,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	t.Run("release nil lock", func(t *testing.T) {
 		var l *dynamolock.Lock
@@ -675,7 +676,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 
 	t.Run("release empty lock", func(t *testing.T) {
 		emptyLock := &dynamolock.Lock{}
-		if released, err := c.ReleaseLock(emptyLock); err != dynamolock.ErrOwnerMismatched {
+		if released, err := c.ReleaseLock(emptyLock); !errors.Is(err, dynamolock.ErrOwnerMismatched) {
 			t.Fatal("empty locks should return error:", err)
 		} else {
 			t.Log("emptyLock:", released, err)
@@ -697,7 +698,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 
 	t.Run("nil lock close", func(t *testing.T) {
 		var l *dynamolock.Lock
-		if err := l.Close(); err != dynamolock.ErrCannotReleaseNullLock {
+		if err := l.Close(); !errors.Is(err, dynamolock.ErrCannotReleaseNullLock) {
 			t.Fatal("wrong error when closing nil lock:", err)
 		}
 	})
@@ -720,7 +721,7 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	const lockName = "lockNoData"
 
@@ -762,7 +763,7 @@ func TestSortKeyHeartbeatLoss(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(c, t)
+	_, _ = createSortKeyTable(t, c)
 
 	const lockName = "heartbeatLoss"
 

@@ -444,7 +444,7 @@ func TestFailIfLocked(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = c.AcquireLock("failIfLocked", dynamolock.FailIfLocked())
-	if e, ok := err.(*dynamolock.LockNotGrantedError); e == nil || !ok {
+	if !isLockNotGrantedError(err) {
 		t.Fatal("expected error (LockNotGrantedError) not found:", err)
 		return
 	}
@@ -706,27 +706,27 @@ func TestClientClose(t *testing.T) {
 	}
 
 	t.Log("close after close")
-	if err := c.Close(); err != dynamolock.ErrClientClosed {
+	if err := c.Close(); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (close after close):", err)
 	}
 	t.Log("heartbeat after close")
-	if err := c.SendHeartbeat(lockItem1); err != dynamolock.ErrClientClosed {
+	if err := c.SendHeartbeat(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (heartbeat after close):", err)
 	}
 	t.Log("release after close")
-	if _, err := c.ReleaseLock(lockItem1); err != dynamolock.ErrClientClosed {
+	if _, err := c.ReleaseLock(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (release after close):", err)
 	}
 	t.Log("get after close")
-	if _, err := c.Get("bulkClose1"); err != dynamolock.ErrClientClosed {
+	if _, err := c.Get("bulkClose1"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (get after close):", err)
 	}
 	t.Log("acquire after close")
-	if _, err := c.AcquireLock("acquireAfterClose"); err != dynamolock.ErrClientClosed {
+	if _, err := c.AcquireLock("acquireAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (acquire after close):", err)
 	}
 	t.Log("create table after close")
-	if _, err := c.CreateTable("createTableAfterClose"); err != dynamolock.ErrClientClosed {
+	if _, err := c.CreateTable("createTableAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (create table after close):", err)
 	}
 }
@@ -766,7 +766,7 @@ func TestInvalidReleases(t *testing.T) {
 
 	t.Run("release empty lock", func(t *testing.T) {
 		emptyLock := &dynamolock.Lock{}
-		if released, err := c.ReleaseLock(emptyLock); err != dynamolock.ErrOwnerMismatched {
+		if released, err := c.ReleaseLock(emptyLock); !errors.Is(err, dynamolock.ErrOwnerMismatched) {
 			t.Fatal("empty locks should return error:", err)
 		} else {
 			t.Log("emptyLock:", released, err)
@@ -788,7 +788,7 @@ func TestInvalidReleases(t *testing.T) {
 
 	t.Run("nil lock close", func(t *testing.T) {
 		var l *dynamolock.Lock
-		if err := l.Close(); err != dynamolock.ErrCannotReleaseNullLock {
+		if err := l.Close(); !errors.Is(err, dynamolock.ErrCannotReleaseNullLock) {
 			t.Fatal("wrong error when closing nil lock:", err)
 		}
 	})
@@ -1019,4 +1019,12 @@ func readStringAttr(attr types.AttributeValue) string {
 		return s.Value
 	}
 	return ""
+}
+
+func isLockNotGrantedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var errLockNotGranted *dynamolock.LockNotGrantedError
+	return errors.As(err, &errLockNotGranted)
 }
