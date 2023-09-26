@@ -20,11 +20,6 @@ jobs:
         with:
           go-version: "stable"
 
-      - name: Setup golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          skip-cache: true
-
       - name: Download DynamoDB Local
         working-directory: v2/
         run: |
