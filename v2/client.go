@@ -1051,6 +1051,7 @@ func (c *Client) lockSessionMonitorChecker(ctx context.Context,
 				lock.semaphore.Unlock()
 				if err != nil {
 					c.logger.Println(ctx, "cannot run session monitor because", err)
+					go lock.sessionMonitor.callback()
 					return
 				}
 				if timeUntilDangerZone <= 0 {
