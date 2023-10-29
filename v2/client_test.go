@@ -1080,3 +1080,34 @@ func TestAcquireLockOnCanceledContext(t *testing.T) {
 		t.Fatal("missing expected error:", err)
 	}
 }
+
+func TestTableTags(t *testing.T) {
+	svc := &interceptedDynamoDBClient{
+		DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+	}
+	c, err := dynamolock.New(svc,
+		"locksWithTags",
+		dynamolock.WithOwnerName("TestTableTags#1"),
+		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tableTag := types.Tag{Key: aws.String("tagName"), Value: aws.String("tagValue")}
+	var gotTags bool
+	svc.createTablePre = func(ctx context.Context, cti *dynamodb.CreateTableInput, f []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) {
+		for _, tag := range cti.Tags {
+			if tag.Key == tableTag.Key && tag.Value == tableTag.Value {
+				gotTags = true
+				break
+			}
+		}
+		return ctx, cti, f
+	}
+	if _, err := c.CreateTable("locksWithTags", dynamolock.WithTags([]types.Tag{tableTag})); err != nil {
+		t.Fatal(err)
+	}
+	if !gotTags {
+		t.Fatal("API request missed tags")
+	}
+}

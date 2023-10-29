@@ -317,8 +317,16 @@ func TestHeartbeatReadOnlyLock(t *testing.T) {
 type interceptedDynamoDBClient struct {
 	dynamolock.DynamoDBClient
 
+	createTablePre func(context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options))
 	getItemPost    func(*dynamodb.GetItemOutput, error) (*dynamodb.GetItemOutput, error)
 	updateItemPost func(*dynamodb.UpdateItemOutput, error) (*dynamodb.UpdateItemOutput, error)
+}
+
+func (m *interceptedDynamoDBClient) CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
+	if m.createTablePre != nil {
+		ctx, params, optFns = m.createTablePre(ctx, params, optFns)
+	}
+	return m.DynamoDBClient.CreateTable(ctx, params, optFns...)
 }
 
 func (m *interceptedDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
