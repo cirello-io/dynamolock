@@ -287,9 +287,6 @@ func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOpti
 // AcquireLockWithContext holds the defined lock. The given context is passed
 // down to the underlying dynamoDB call.
 func (c *Client) AcquireLockWithContext(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
-	if c.isClosed() {
-		return nil, ErrClientClosed
-	}
 	req := &acquireLockOptions{
 		partitionKey: key,
 	}

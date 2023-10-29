@@ -78,10 +78,6 @@ func (l *Lock) IsExpired() bool {
 }
 
 func (l *Lock) isExpired() bool {
-	if l == nil {
-		return true
-	}
-
 	if l.isReleased {
 		return true
 	}
@@ -142,9 +138,6 @@ var (
 )
 
 func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
-	if l == nil {
-		return 0, ErrLockAlreadyReleased
-	}
 	if l.sessionMonitor == nil {
 		return 0, ErrSessionMonitorNotSet
 	}

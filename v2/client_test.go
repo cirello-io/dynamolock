@@ -1037,3 +1037,46 @@ func isLockNotGrantedError(err error) bool {
 	var errLockNotGranted *dynamolock.LockNotGrantedError
 	return errors.As(err, &errLockNotGranted)
 }
+
+func TestAcquireLockOnCloseClient(t *testing.T) {
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestAcquireLockOnCloseClient#1"),
+		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+
+	_, err = c.AcquireLock("closeClientLock")
+	if !errors.Is(err, dynamolock.ErrClientClosed) {
+		t.Fatal("missing expected error:", err)
+	}
+}
+
+func TestAcquireLockOnCanceledContext(t *testing.T) {
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	c, err := dynamolock.New(svc,
+		"locks",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithHeartbeatPeriod(1*time.Second),
+		dynamolock.WithOwnerName("TestAcquireLockOnCanceledContext#1"),
+		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = c.GetWithContext(ctx, "closeClientLock")
+	if !errors.Is(err, ctx.Err()) {
+		t.Fatal("missing expected error:", err)
+	}
+}
