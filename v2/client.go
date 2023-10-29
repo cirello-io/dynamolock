@@ -992,10 +992,6 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 	return lockItem, nil
 }
 
-// ErrClientClosed reports the client cannot be used because it is already
-// closed.
-var ErrClientClosed = errors.New("client already closed")
-
 func (c *Client) isClosed() bool {
 	c.mu.RLock()
 	closed := c.closed

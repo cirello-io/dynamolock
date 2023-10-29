@@ -19,6 +19,7 @@ package dynamolock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,9 +32,11 @@ import (
 type SendHeartbeatOption func(*sendHeartbeatOptions)
 
 type sendHeartbeatOptions struct {
-	lockItem   *Lock
-	data       []byte
-	deleteData bool
+	lockItem    *Lock
+	data        []byte
+	deleteData  bool
+	retries     int
+	retriesWait time.Duration
 }
 
 // DeleteData removes the Lock data on heartbeat.
@@ -48,6 +51,14 @@ func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 	return func(o *sendHeartbeatOptions) {
 		o.deleteData = false
 		o.data = data
+	}
+}
+
+// HeartbeatRetries helps dealing with transient errors.
+func HeartbeatRetries(retries int, wait time.Duration) SendHeartbeatOption {
+	return func(o *sendHeartbeatOptions) {
+		o.retries = retries
+		o.retriesWait = wait
 	}
 }
 
@@ -76,32 +87,38 @@ func (c *Client) SendHeartbeatWithContext(ctx context.Context, lockItem *Lock, o
 	for _, opt := range opts {
 		opt(sho)
 	}
-	return c.sendHeartbeat(ctx, sho)
-}
-
-func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions) error {
-	leaseDuration := c.leaseDuration
-
-	lockItem := options.lockItem
 	lockItem.semaphore.Lock()
 	defer lockItem.semaphore.Unlock()
+	currentRVN := lockItem.recordVersionNumber
+	if currentRVN == "" {
+		return ErrReadOnlyLockHeartbeat
+	}
+	targetRVN := c.generateRecordVersionNumber()
+	err := c.sendHeartbeat(ctx, sho, currentRVN, targetRVN)
+	if err != nil {
+		err = c.retryHeartbeat(ctx, err, sho, currentRVN, targetRVN)
+		err = parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
+		if errors.As(err, new(*LockNotGrantedError)) {
+			c.locks.Delete(lockItem.uniqueIdentifier())
+		}
+		return err
+	}
+	return nil
+
+}
+
+func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions, currentRecordVersionNumber, targetRecordVersionNumber string) error {
+	leaseDuration := c.leaseDuration
+	lockItem := options.lockItem
 
 	if lockItem.isExpired() || lockItem.ownerName != c.ownerName || lockItem.isReleased {
-		c.locks.Delete(lockItem.uniqueIdentifier())
 		return &LockNotGrantedError{msg: "cannot send heartbeat because lock is not granted"}
 	}
 
-	// Set up condition for UpdateItem. Basically any changes require:
-	// 1. I own the lock
-	// 2. I know the current version number
-	// 3. The lock already exists (UpdateItem API can cause a new item to be created if you do not condition the primary keys with attribute_exists)
-
-	newRvn := c.generateRecordVersionNumber()
-
-	cond := ownershipLockCondition(c.partitionKeyName, lockItem.recordVersionNumber, lockItem.ownerName)
+	cond := ownershipLockCondition(c.partitionKeyName, currentRecordVersionNumber, lockItem.ownerName)
 	update := expression.
 		Set(leaseDurationAttr, expression.Value(leaseDuration.String())).
-		Set(rvnAttr, expression.Value(newRvn))
+		Set(rvnAttr, expression.Value(targetRecordVersionNumber))
 
 	if options.deleteData {
 		update.Remove(dataAttr)
@@ -123,14 +140,40 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 
 	_, err := c.dynamoDB.UpdateItem(ctx, updateItemInput)
 	if err != nil {
-		err := parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
-		var errNotGranted *LockNotGrantedError
-		if errors.As(err, &errNotGranted) {
-			c.locks.Delete(lockItem.uniqueIdentifier())
-		}
 		return err
 	}
 
-	lockItem.updateRVN(newRvn, lastUpdateOfLock, leaseDuration)
+	lockItem.updateRVN(targetRecordVersionNumber, lastUpdateOfLock, leaseDuration)
 	return nil
+}
+
+func (c *Client) retryHeartbeat(ctx context.Context, errHeartbeat error, sho *sendHeartbeatOptions, currentRecordVersionNumber, targetRecordVersionNumber string) error {
+	lockItem := sho.lockItem
+	rvn := currentRecordVersionNumber
+	for i := 0; i < sho.retries; i++ {
+		c.logger.Println(ctx, "retrying heartbeat... attempt", i)
+		storedLock, err := c.getLockFromDynamoDB(ctx, getLockOptions{partitionKeyName: lockItem.uniqueIdentifier()})
+		if err != nil {
+			return fmt.Errorf("cannot load lock for heartbeat retry: %w", err)
+		}
+		lostLock := storedLock.recordVersionNumber != currentRecordVersionNumber && storedLock.recordVersionNumber != targetRecordVersionNumber
+		if lostLock {
+			return &LockNotGrantedError{msg: "lock lost during heartbeat"}
+		}
+		inconsistentWriteDetected := storedLock.recordVersionNumber == targetRecordVersionNumber
+		if inconsistentWriteDetected {
+			rvn = targetRecordVersionNumber
+		}
+		errHeartbeat = c.sendHeartbeat(ctx, sho, rvn, targetRecordVersionNumber)
+		if errHeartbeat == nil {
+			break
+		}
+		c.logger.Println(ctx, "hearbeat retry, attempt", i, ", waiting", sho.retriesWait, "before next attempt")
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(sho.retriesWait):
+		}
+	}
+	return errHeartbeat
 }

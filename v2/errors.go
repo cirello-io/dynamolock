@@ -24,7 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+// ErrReadOnlyLockHeartbeat indicates that the given *Lock is not really a lock,
+// but a read-only copy from a Get call.
 var ErrReadOnlyLockHeartbeat = errors.New("cannot send heartbeats to a read-only lock")
+
+// ErrClientClosed reports the client cannot be used because it is already
+// closed.
+var ErrClientClosed = errors.New("client already closed")
 
 // TimeoutError indicates that the dynamolock gave up acquiring the lock. It
 // holds the length of the attempt that resulted in the error.
