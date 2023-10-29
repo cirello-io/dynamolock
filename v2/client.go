@@ -1068,10 +1068,11 @@ func readStringAttr(attr types.AttributeValue) string {
 }
 
 func readBytesAttr(attr types.AttributeValue) []byte {
-	if b, ok := attr.(*types.AttributeValueMemberB); ok {
-		return b.Value
+	var b []byte
+	if v, ok := attr.(*types.AttributeValueMemberB); ok {
+		b = v.Value
 	}
-	return nil
+	return b
 }
 
 // DynamoDBClient defines the public interface that must be fulfilled for
