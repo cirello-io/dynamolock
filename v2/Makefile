@@ -1,6 +1,7 @@
 linters:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 	golangci-lint -j 1 run --disable-all \
+		--exclude ".*Load returns interface.*" \
 		-E "errcheck" \
 		-E "errname" \
 		-E "errorlint" \
