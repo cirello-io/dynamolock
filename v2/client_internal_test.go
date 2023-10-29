@@ -85,7 +85,7 @@ func TestCloseRace(t *testing.T) {
 	// Check for any leaked locks
 	wg.Wait()
 	length := 0
-	lockClient.locks.Range(func(_, _ interface{}) bool {
+	lockClient.locks.Range(func(_ string, _ *Lock) bool {
 		length++
 		return true
 	})

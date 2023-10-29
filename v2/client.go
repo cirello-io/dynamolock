@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	internalsync "cirello.io/dynamolock/v2/internal/sync"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -86,8 +87,8 @@ type Client struct {
 	leaseDuration               time.Duration
 	heartbeatPeriod             time.Duration
 	ownerName                   string
-	locks                       sync.Map
-	sessionMonitorCancellations sync.Map
+	locks                       internalsync.Map[string, *Lock]
+	sessionMonitorCancellations internalsync.Map[string, context.CancelFunc]
 
 	logger ContextLogger
 
@@ -679,8 +680,7 @@ func (c *Client) heartbeat(ctx context.Context) {
 	tick := time.NewTicker(c.heartbeatPeriod)
 	defer tick.Stop()
 	for range tick.C {
-		c.locks.Range(func(_ interface{}, value interface{}) bool {
-			lockItem := value.(*Lock)
+		c.locks.Range(func(_ string, lockItem *Lock) bool {
 			if err := c.SendHeartbeat(lockItem); err != nil {
 				c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
 			}
@@ -924,8 +924,8 @@ func (c *Client) updateLock(ctx context.Context, data []byte, ownershipLockCond 
 
 func (c *Client) releaseAllLocks(ctx context.Context) error {
 	var err error
-	c.locks.Range(func(key interface{}, value interface{}) bool {
-		err = c.releaseLock(ctx, value.(*Lock))
+	c.locks.Range(func(_ string, lockItem *Lock) bool {
+		err = c.releaseLock(ctx, lockItem)
 		return err == nil
 	})
 	return err
@@ -963,9 +963,8 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 		partitionKeyName: key,
 	}
 	keyName := getLockOption.partitionKeyName
-	v, ok := c.locks.Load(keyName)
+	lockItem, ok := c.locks.Load(keyName)
 	if ok {
-		lockItem := v.(*Lock)
 		lockItem.updateRVN("", time.Time{}, lockItem.leaseDuration)
 		return lockItem, nil
 	}
@@ -1015,13 +1014,11 @@ func (c *Client) tryAddSessionMonitor(lockName string, lock *Lock) {
 }
 
 func (c *Client) removeKillSessionMonitor(monitorName string) {
-	sm, ok := c.sessionMonitorCancellations.Load(monitorName)
+	cancel, ok := c.sessionMonitorCancellations.Load(monitorName)
 	if !ok {
 		return
 	}
-	if cancel, ok := sm.(context.CancelFunc); ok {
-		cancel()
-	}
+	cancel()
 }
 
 func (c *Client) lockSessionMonitorChecker(ctx context.Context,
