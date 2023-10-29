@@ -91,7 +91,7 @@ func TestClientBasicFlow(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithContextLogger(&testContextLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
@@ -845,6 +845,15 @@ type testLogger struct {
 }
 
 func (t *testLogger) Println(v ...interface{}) {
+	t.t.Helper()
+	t.t.Log(v...)
+}
+
+type testContextLogger struct {
+	t *testing.T
+}
+
+func (t *testContextLogger) Println(_ context.Context, v ...interface{}) {
 	t.t.Helper()
 	t.t.Log(v...)
 }
