@@ -18,6 +18,7 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -253,4 +254,61 @@ func TestHeartbeatDataOps(t *testing.T) {
 			t.Log("send heartbeat for lockedItemAlpha:", err)
 		}
 	})
+}
+
+func TestHeartbeatReadOnlyLock(t *testing.T) {
+	t.Parallel()
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	newClient := func() (*dynamolock.Client, error) {
+		return dynamolock.New(svc,
+			"locks",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatReadOnlyLock#1"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+	}
+	c, err := newClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	_, _ = c.CreateTable("locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "readonly-lock"
+	if _, err := c.AcquireLock(lockName); err != nil {
+		t.Fatal(err)
+	}
+
+	roLockCache, err := c.Get(lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = c.SendHeartbeat(roLockCache)
+	if !errors.Is(err, dynamolock.ErrReadOnlyLockHeartbeat) {
+		t.Fatal("expected heartbeat to fail a read-only lock (loaded from cache)")
+	}
+
+	c2, err := newClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	roLockDB, err := c2.Get(lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = c2.SendHeartbeat(roLockDB)
+	if !errors.Is(err, dynamolock.ErrReadOnlyLockHeartbeat) {
+		t.Fatal("expected heartbeat to fail a read-only lock (loaded from DB)")
+	}
 }

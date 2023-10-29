@@ -974,7 +974,9 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 	keyName := getLockOption.partitionKeyName
 	v, ok := c.locks.Load(keyName)
 	if ok {
-		return v.(*Lock), nil
+		lockItem := v.(*Lock)
+		lockItem.updateRVN("", time.Time{}, lockItem.leaseDuration)
+		return lockItem, nil
 	}
 
 	lockItem, err := c.getLockFromDynamoDB(ctx, getLockOption)

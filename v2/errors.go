@@ -24,6 +24,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+var ErrReadOnlyLockHeartbeat = errors.New("cannot send heartbeats to a read-only lock")
+
 // TimeoutError indicates that the dynamolock gave up acquiring the lock. It
 // holds the length of the attempt that resulted in the error.
 type TimeoutError struct {
