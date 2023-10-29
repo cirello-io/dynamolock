@@ -1019,9 +1019,7 @@ func (c *Client) removeKillSessionMonitor(monitorName string) {
 	if !ok {
 		return
 	}
-	if cancel, ok := sm.(func()); ok {
-		cancel()
-	} else if cancel, ok := sm.(context.CancelFunc); ok {
+	if cancel, ok := sm.(context.CancelFunc); ok {
 		cancel()
 	}
 }
