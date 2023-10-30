@@ -659,18 +659,26 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]types.Attrib
 }
 
 func (c *Client) generateRecordVersionNumber() string {
-	// TODO: improve me
-	return randString(32)
+	return fmt.Sprint(time.Now().UnixNano(), ":", randString(32))
 }
 
-var letterRunes = []rune("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var (
+	letterRunes    = []rune("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letterRunesMax = big.NewInt(int64(len(letterRunes)))
+)
 
 func randString(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		// ignoring error as the only possible error is for io.ReadFull
-		r, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letterRunes))))
-		b[i] = letterRunes[r.Int64()]
+		var idx int64
+		for {
+			r, err := rand.Int(rand.Reader, letterRunesMax)
+			if err == nil {
+				idx = r.Int64()
+				break
+			}
+		}
+		b[i] = letterRunes[idx]
 	}
 	return string(b)
 }
