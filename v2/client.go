@@ -19,11 +19,11 @@ package dynamolock
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/big"
 	"sync"
 	"time"
 
@@ -113,7 +113,7 @@ func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Clie
 		partitionKeyName: defaultPartitionKeyName,
 		leaseDuration:    defaultLeaseDuration,
 		heartbeatPeriod:  defaultHeartbeatPeriod,
-		ownerName:        randString(32),
+		ownerName:        randString(),
 		logger: &contextLoggerAdapter{
 			logger: log.New(io.Discard, "", 0),
 		},
@@ -659,28 +659,19 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]types.Attrib
 }
 
 func (c *Client) generateRecordVersionNumber() string {
-	return fmt.Sprint(time.Now().UnixNano(), ":", randString(32))
+	return fmt.Sprint(time.Now().UnixNano(), ":", randString())
 }
 
-var (
-	letterRunes    = []rune("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	letterRunesMax = big.NewInt(int64(len(letterRunes)))
-)
+var base32Encoder = base32.StdEncoding.WithPadding(base32.NoPadding)
 
-func randString(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		var idx int64
-		for {
-			r, err := rand.Int(rand.Reader, letterRunesMax)
-			if err == nil {
-				idx = r.Int64()
-				break
-			}
+func randString() string {
+	randomBytes := make([]byte, 32)
+	for {
+		if _, err := io.ReadFull(rand.Reader, randomBytes); err == nil {
+			break
 		}
-		b[i] = letterRunes[idx]
 	}
-	return string(b)
+	return base32Encoder.EncodeToString(randomBytes)
 }
 
 func (c *Client) heartbeat(ctx context.Context) {
