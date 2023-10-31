@@ -831,11 +831,22 @@ func WithDataAfterRelease(data []byte) ReleaseLockOption {
 type ReleaseLockOption func(*releaseLockOptions)
 
 func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string) expression.ConditionBuilder {
-	cond := expression.And(
-		expression.And(
+	return unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName, false)
+}
+
+func unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string, unsafeMatchOwnerOnly bool) expression.ConditionBuilder {
+	var partitionExpr expression.ConditionBuilder
+	switch unsafeMatchOwnerOnly {
+	case true:
+		partitionExpr = expression.AttributeExists(expression.Name(partitionKeyName))
+	case false:
+		partitionExpr = expression.And(
 			expression.AttributeExists(expression.Name(partitionKeyName)),
 			expression.Equal(rvnAttr, expression.Value(recordVersionNumber)),
-		),
+		)
+	}
+	cond := expression.And(
+		partitionExpr,
 		expression.Equal(ownerNameAttr, expression.Value(ownerName)),
 	)
 	return cond

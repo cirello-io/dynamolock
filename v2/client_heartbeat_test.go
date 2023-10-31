@@ -624,3 +624,61 @@ func TestHeartbeatRetry(t *testing.T) {
 		}
 	})
 }
+
+func TestHeartbeatOwnerMatching(t *testing.T) {
+	t.Parallel()
+
+	svc := &interceptedDynamoDBClient{
+		DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+	}
+	c, err := dynamolock.New(svc,
+		"noRetry",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithOwnerName("TestHeartbeatOwnerMatching"),
+		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("ensuring table exists")
+	_, _ = c.CreateTable("noRetry",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+	const lockName = "lock-heartbeat-retry"
+	lock, err := c.AcquireLock(lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var failUpdateItemOnce sync.Once
+	svc.updateItemPost = func(gio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+		failUpdateItemOnce.Do(func() {
+			t.Log("NETWORK FAILURE")
+			gio = nil
+			err = errors.New("network failed")
+		})
+		return gio, err
+	}
+
+	// Heartbeat sent, but response missed...
+	err = c.SendHeartbeat(lock)
+	if err == nil {
+		t.Fatal("unexpected error missing on first heartbeat")
+	}
+
+	// ... prove the response is missed ...
+	err = c.SendHeartbeat(lock)
+	if err == nil {
+		t.Fatal("expeted error for vanilla retry missing")
+	}
+
+	// ... prove the owner is the same.
+	err = c.SendHeartbeat(lock, dynamolock.UnsafeMatchOwnerOnly())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+}
