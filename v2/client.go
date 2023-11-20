@@ -951,15 +951,15 @@ func (c *Client) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
 	return key
 }
 
-// GetWithContext finds out who owns the given lock, but does not acquire the
-// lock. It returns the metadata currently associated with the given lock. If
-// the client currently has the lock, it will return the lock, and operations
-// such as releaseLock will work. However, if the client does not have the lock,
-// then operations like releaseLock will not work (after calling GetWithContext,
-// the caller should check lockItem.isExpired() to figure out if it currently
-// has the lock.) If the context is canceled, it is going to return the context
-// error on local cache hit. The given context is passed down to the underlying
-// dynamoDB call.
+// GetWithContext loads the given lock, but does not acquire the lock. It
+// returns the metadata currently associated with the given lock. If the client
+// pointer is the one who acquired the lock, it will return the lock, and
+// operations such as releaseLock will work. However, if the client is not the
+// one who acquired the lock, then operations like releaseLock will not work
+// (after calling GetWithContext, the caller should check lockItem.isExpired()
+// to figure out if it currently has the lock.) If the context is canceled, it
+// is going to return the context error on local cache hit. The given context is
+// passed down to the underlying dynamoDB call.
 func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
@@ -975,7 +975,6 @@ func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) 
 	keyName := getLockOption.partitionKeyName
 	lockItem, ok := c.locks.Load(keyName)
 	if ok {
-		lockItem.updateRVN("", time.Time{}, lockItem.leaseDuration)
 		return lockItem, nil
 	}
 
@@ -1092,13 +1091,14 @@ type DynamoDBClient interface {
 
 // Sugar functions
 
-// Get finds out who owns the given lock, but does not acquire the lock. It
+// GetWithContext loads the given lock, but does not acquire the lock. It
 // returns the metadata currently associated with the given lock. If the client
-// currently has the lock, it will return the lock, and operations such as
-// releaseLock will work. However, if the client does not have the lock, then
-// operations like releaseLock will not work (after calling Get, the caller
-// should check lockItem.isExpired() to figure out if it currently has the
-// lock.)
+// pointer is the one who acquired the lock, it will return the lock, and
+// operations such as releaseLock will work. However, if the client is not the
+// one who acquired the lock, then operations like releaseLock will not work
+// (after calling GetWithContext, the caller should check lockItem.isExpired()
+// to figure out if it currently has the lock.) If the context is canceled, it
+// is going to return the context error on local cache hit.
 func (c *Client) Get(key string) (*Lock, error) {
 	return c.GetWithContext(context.Background(), key)
 }

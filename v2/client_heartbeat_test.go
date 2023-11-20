@@ -294,8 +294,8 @@ func TestHeartbeatReadOnlyLock(t *testing.T) {
 	}
 
 	err = c.SendHeartbeat(roLockCache)
-	if !errors.Is(err, dynamolock.ErrReadOnlyLockHeartbeat) {
-		t.Fatal("expected heartbeat to fail a read-only lock (loaded from cache)")
+	if err != nil {
+		t.Fatal("unexpected error:", err)
 	}
 
 	c2, err := newClient()
