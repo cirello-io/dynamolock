@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.23.4
-	github.com/aws/aws-sdk-go-v2/credentials v1.16.7
+	github.com/aws/aws-sdk-go-v2/credentials v1.16.8
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.6.7
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.1
 )
