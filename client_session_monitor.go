@@ -23,6 +23,6 @@ type sessionMonitor struct {
 	callback func()
 }
 
-func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time) time.Duration {
-	return time.Until(lastAbsoluteTime.Add(s.safeTime))
+func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time, lease time.Duration) time.Duration {
+	return time.Until(lastAbsoluteTime.Add(lease - s.safeTime))
 }

@@ -31,7 +31,7 @@ func TestIssue56(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
+		Endpoint: aws.String(DynamoTestHost()),
 		Region:   aws.String("us-west-2"),
 	})
 	lockClient, err := dynamolock.New(svc,

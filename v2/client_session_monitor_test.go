@@ -121,7 +121,9 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go lockedItem.Close()
+	go func() {
+		_ = lockedItem.Close()
+	}()
 
 	mu.Lock()
 	triggered := sessionMonitorWasTriggered
@@ -135,10 +137,11 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 
 func TestSessionMonitorFullCycle(t *testing.T) {
 	t.Parallel()
+	lease := 3 * time.Second
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
 		"locks",
-		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithLeaseDuration(lease),
 		dynamolock.WithOwnerName("TestSessionMonitorFullCycle#1"),
 		dynamolock.DisableHeartbeat(),
 		dynamolock.WithPartitionKeyName("key"),
@@ -160,8 +163,9 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		mu                         sync.Mutex
 		sessionMonitorWasTriggered bool
 	)
+	safe := time.Second
 	lockedItem, err := c.AcquireLock("sessionMonitor",
-		dynamolock.WithSessionMonitor(1*time.Second, func() {
+		dynamolock.WithSessionMonitor(safe, func() {
 			mu.Lock()
 			sessionMonitorWasTriggered = true
 			mu.Unlock()
@@ -171,7 +175,19 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(2 * time.Second)
+	// our lease is 3 minutes and safe period is 1 minute.  We should be alerted with 1-minute
+	// left, not after 1 minute.  This first test is to verify we are not alerted after 1st minute.
+	padding := time.Millisecond * 100
+	firstSleep := safe + padding
+	time.Sleep(firstSleep)
+	if ok, err := lockedItem.IsAlmostExpired(); err == nil && ok {
+		t.Fatal("lock should not be in the danger zone")
+	} else if err != nil {
+		t.Fatal("cannot assert whether the lock is almost expired:", err)
+	}
+
+	// sleep long enough to get within the final minute (should get callback)
+	time.Sleep(lease - firstSleep - safe)
 	if ok, err := lockedItem.IsAlmostExpired(); err == nil && !ok {
 		t.Fatal("lock is not yet in the danger zone")
 	} else if err != nil {
@@ -185,7 +201,9 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 		t.Fatal("session monitor was not triggered")
 	}
 
-	time.Sleep(2 * time.Second)
+	// sleep remaining time of lease
+	expiration := time.Until(time.Now().Add(lease))
+	time.Sleep(expiration + padding)
 	if ok, err := lockedItem.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Error("lockedItem should be already expired:", ok, err)
 	}

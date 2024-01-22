@@ -36,7 +36,7 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 		}
 	}()
 	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
+		Endpoint: aws.String(DynamoTestHost()),
 		Region:   aws.String("us-west-2"),
 	})
 	c, err := dynamolock.New(svc,
@@ -53,7 +53,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
+		Endpoint: aws.String(DynamoTestHost()),
 		Region:   aws.String("us-west-2"),
 	})
 	c, err := dynamolock.New(svc,
@@ -147,7 +147,7 @@ func TestHeartbeatDataOps(t *testing.T) {
 	isDynamoLockAvailable(t)
 	t.Parallel()
 	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
+		Endpoint: aws.String(DynamoTestHost()),
 		Region:   aws.String("us-west-2"),
 	})
 	newClient := func() (*dynamolock.Client, error) {

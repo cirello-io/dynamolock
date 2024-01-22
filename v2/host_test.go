@@ -1,5 +1,5 @@
 /*
-Copyright 2021 U. Cirello (cirello.io and github.com/cirello-io)
+Copyright 2019 github.com/ucirello
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,15 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dynamolock
+package dynamolock_test
 
-import "time"
+import (
+	"os"
+	"strings"
+)
 
-type sessionMonitor struct {
-	safeTime time.Duration
-	callback func()
-}
-
-func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time, lease time.Duration) time.Duration {
-	return time.Until(lastAbsoluteTime.Add(lease - s.safeTime))
+// DynamoTestHost allows overriding host used for tests using DYNAMODB_LOCAL_HOST environment
+// variable (default is http://localhost:8000).
+func DynamoTestHost() string {
+	host := os.Getenv("DYNAMODB_LOCAL_HOST")
+	if host == "" {
+		host = "http://localhost:8000"
+	}
+	// remove trailing / since also used as raw TCP host/port (by stripping http://)
+	host = strings.TrimSuffix(host, "/")
+	return host
 }

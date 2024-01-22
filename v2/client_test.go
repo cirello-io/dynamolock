@@ -52,8 +52,9 @@ func TestMain(m *testing.M) {
 	if err := cmd.Start(); err != nil {
 		panic("cannot start local dynamodb:" + err.Error())
 	}
+	host := strings.Replace(DynamoTestHost(), "http://", "", 1)
 	for i := 0; i < 10; i++ {
-		c, err := net.Dial("tcp", "localhost:8000")
+		c, err := net.Dial("tcp", host)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -72,7 +73,7 @@ func defaultConfig(_ *testing.T) aws.Config {
 	return aws.Config{
 		Region: "us-west-2",
 		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{URL: "http://localhost:8000/"}, nil
+			return aws.Endpoint{URL: DynamoTestHost()}, nil
 		}),
 		Credentials: credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
