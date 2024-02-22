@@ -2,8 +2,8 @@ github.com/aws/aws-sdk-go-v2 v1.25.1 h1:P7hU6A5qEdmajGwvae/zDkOq+ULLC9tQBTwqqiwF
 github.com/aws/aws-sdk-go-v2 v1.25.1/go.mod h1:Evoc5AsmtveRt1komDwIsjHFyrP5tDuF1D1U+6z6pNo=
 github.com/aws/aws-sdk-go-v2/credentials v1.17.1 h1:H4WlK2OnVotRmbVgS8Ww2Z4B3/dDHxDS7cW6EiCECN4=
 github.com/aws/aws-sdk-go-v2/credentials v1.17.1/go.mod h1:qTfT/OIE9RAVirZDq0PcEYOOM4Pkmf1Hrk1iInKRS4k=
-github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.3 h1:YfC/KzAJKnEQBpSKi8ZCi+UkrdfkHzL+ssKK5HS3w0I=
-github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.3/go.mod h1:U+O208PGbKORQY/5VB0MqlIEYlcxBSECXIlhQVRmcZ4=
+github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.4 h1:sLnSupsQ5ca8CFDa/xi+HAku28vRxIuM/W+9IwUoiJk=
+github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.4/go.mod h1:5uGlXH2LHOccHojUy/Rfr9IlUR6yHRgVfXbWEd1F/R4=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.3 h1:5ytd7S3vKdB0D94jgoUuNbbQI0oKZRUY8+RpmNuPIhQ=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.3/go.mod h1:ZfGjd3/rEE4RRVdLQLBshVIRML0JNUkCNmk39prsyTQ=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.1 h1:evvi7FbTAoFxdP/mixmP7LIYzQWAmzBcwNB/es9XPNc=
@@ -12,8 +12,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.1 h1:RAnaIrbxPtlXNVI/OIl
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.1/go.mod h1:nbgAGkH5lk0RZRMh6A4K/oG6Xj11eC/1CyDow+DUAFI=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.29.2 h1:pSYpAXHmtAzPEuHRJXlAmX5e71iwWEYsMG4sD7u8OYY=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.29.2/go.mod h1:H6ktm/kjq2KtbGwnVFMAyOkOwcFfoD0P+SpneVqaa5o=
-github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.19.2 h1:hRfvsDcgxWoRZUBa2vBDOKB7w4FsofEPMzEIrd90vTU=
-github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.19.2/go.mod h1:0FgUg08+1knEoYHo0pa8ogm7D9sjH79lHnRzCNGk/6Q=
+github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.19.3 h1:Cu5DBzRaI0/G+FbXLxxuhWZKZqogCxTHUjl5FQ7WJ9c=
+github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.19.3/go.mod h1:SW82gLrKb2aRvZWycqs65d6iNGflEkDH+q/K6+vM3RE=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 h1:EyBZibRTVAs6ECHZOw5/wlylS9OcTzwyjeQMudmREjE=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1/go.mod h1:JKpmtYhhPs7D97NL/ltqz7yCkERFW5dOlHyVl66ZYF8=
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.1 h1:QEot4yoGf6KGY2hAJe7IIP5x51pyRv4cs/x/aKcXMck=
