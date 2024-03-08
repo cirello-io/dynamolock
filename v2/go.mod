@@ -11,9 +11,9 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.2 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.20.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.20.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.3 // indirect
 	github.com/aws/smithy-go v1.20.1 // indirect
