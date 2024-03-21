@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.10 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.13.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.20.3 // indirect
