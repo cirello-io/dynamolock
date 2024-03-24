@@ -1035,23 +1035,21 @@ func (c *Client) lockSessionMonitorChecker(ctx context.Context,
 	go func() {
 		defer c.sessionMonitorCancellations.Delete(monitorName)
 		for {
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				return
-			default:
-				lock.semaphore.Lock()
-				timeUntilDangerZone, err := lock.timeUntilDangerZoneEntered()
-				lock.semaphore.Unlock()
-				if err != nil {
-					c.logger.Println(ctx, "cannot run session monitor because", err)
-					return
-				}
-				if timeUntilDangerZone <= 0 {
-					go lock.sessionMonitor.callback()
-					return
-				}
-				time.Sleep(timeUntilDangerZone)
 			}
+			lock.semaphore.Lock()
+			timeUntilDangerZone, err := lock.timeUntilDangerZoneEntered()
+			lock.semaphore.Unlock()
+			if err != nil {
+				c.logger.Println(ctx, "cannot run session monitor because", err)
+				return
+			}
+			if timeUntilDangerZone <= 0 {
+				go lock.sessionMonitor.callback()
+				return
+			}
+			time.Sleep(timeUntilDangerZone)
 		}
 	}()
 }
