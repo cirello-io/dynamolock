@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime"
 	"sync"
 	"time"
 
@@ -276,6 +277,12 @@ func WithAdditionalAttributes(attr map[string]types.AttributeValue) AcquireLockO
 // Consider an example which uses this mechanism for leader election. One
 // way to make use of this SessionMonitor is to register a callback that
 // kills the instance in case the leader's lock enters the danger zone.
+//
+// The SessionMonitor will not trigger if by the time of its evaluation, the
+// lock is already expired. Therefore, you have to tune the lease, the
+// heartbeat, and the safe time to reduce the likelihood that the lock will be
+// lost at the same time in which the session monitor would be evaluated. A good
+// rule of thumb is to have safeTime to be leaseDuration-(3*heartbeatPeriod).
 func WithSessionMonitor(safeTime time.Duration, callback func()) AcquireLockOption {
 	return func(opt *acquireLockOptions) {
 		opt.sessionMonitor = &sessionMonitor{
@@ -673,22 +680,50 @@ func randString() string {
 	}
 	return base32Encoder.EncodeToString(randomBytes)
 }
-
-func (c *Client) heartbeat(ctx context.Context) {
-	c.logger.Println(ctx, "starting heartbeats")
+func (c *Client) heartbeat(rootCtx context.Context) {
+	c.logger.Println(rootCtx, "heartbeats starting")
+	defer c.logger.Println(rootCtx, "heartbeats done")
 	tick := time.NewTicker(c.heartbeatPeriod)
 	defer tick.Stop()
-	for range tick.C {
+	for {
+		select {
+		case <-rootCtx.Done():
+			c.logger.Println(rootCtx, "client closed, stopping heartbeat")
+			return
+		case t := <-tick.C:
+			c.logger.Println(rootCtx, "heartbeat at:", t)
+		}
+		var (
+			wg        sync.WaitGroup
+			maxProcs  = runtime.GOMAXPROCS(0)
+			lockItems = make(chan *Lock, maxProcs)
+		)
+		c.logger.Println(rootCtx, "heartbeat concurrency level:", maxProcs)
+		for i := 0; i < maxProcs; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for lockItem := range lockItems {
+					c.heartbeatLock(rootCtx, lockItem)
+				}
+			}()
+		}
 		c.locks.Range(func(_ string, lockItem *Lock) bool {
-			if err := c.SendHeartbeat(lockItem); err != nil {
-				c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
-			}
+			lockItems <- lockItem
 			return true
 		})
-		if ctx.Err() != nil {
-			c.logger.Println(ctx, "client closed, stopping heartbeat")
-			return
-		}
+		close(lockItems)
+		c.logger.Println(rootCtx, "all heartbeats are dispatched")
+		wg.Wait()
+		c.logger.Println(rootCtx, "all heartbeats are processed")
+	}
+}
+
+func (c *Client) heartbeatLock(rootCtx context.Context, lockItem *Lock) {
+	ctx, cancel := context.WithTimeout(rootCtx, c.heartbeatPeriod)
+	defer cancel()
+	if err := c.SendHeartbeatWithContext(ctx, lockItem); err != nil {
+		c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
 	}
 }
 
@@ -1030,18 +1065,19 @@ func (c *Client) removeKillSessionMonitor(monitorName string) {
 	cancel()
 }
 
-func (c *Client) lockSessionMonitorChecker(ctx context.Context,
-	monitorName string, lock *Lock) {
+func (c *Client) lockSessionMonitorChecker(ctx context.Context, monitorName string, lock *Lock) {
 	go func() {
 		defer c.sessionMonitorCancellations.Delete(monitorName)
 		for {
 			lock.semaphore.Lock()
-			timeUntilDangerZone, err := lock.timeUntilDangerZoneEntered()
+			isExpired := lock.isExpired()
+			timeUntilDangerZone := lock.timeUntilDangerZoneEntered()
 			lock.semaphore.Unlock()
-			if err != nil {
-				c.logger.Println(ctx, "cannot run session monitor because", err)
+			if isExpired {
+				c.logger.Println(ctx, "lock expired", timeUntilDangerZone)
 				return
 			}
+			c.logger.Println(ctx, "lockSessionMonitorChecker", "monitorName:", monitorName, "timeUntilDangerZone:", timeUntilDangerZone, time.Now().Add(timeUntilDangerZone))
 			if timeUntilDangerZone <= 0 {
 				go lock.sessionMonitor.callback()
 				return

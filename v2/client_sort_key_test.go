@@ -296,7 +296,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#1"),
+		dynamolock.WithOwnerName("TestSortKeyReadLockContentAfterDeleteOnRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
@@ -328,7 +328,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#2"),
+		dynamolock.WithOwnerName("TestSortKeyReadLockContentAfterDeleteOnRelease#2"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
 	if err != nil {

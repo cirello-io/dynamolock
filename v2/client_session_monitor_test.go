@@ -17,7 +17,11 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"fmt"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -189,4 +193,120 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	if ok, err := lockedItem.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Error("lockedItem should be already expired:", ok, err)
 	}
+}
+
+func TestSessionMonitorMissedCall(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		leaseDuration   time.Duration
+		heartbeatPeriod time.Duration
+	}{
+		{6 * time.Second, 1 * time.Second},
+		{15 * time.Second, 1 * time.Second},
+		{15 * time.Second, 3 * time.Second},
+		{20 * time.Second, 5 * time.Second},
+	}
+	for _, tt := range cases {
+		tt := tt
+		safeZone := tt.leaseDuration - (3 * tt.heartbeatPeriod)
+		t.Run(fmt.Sprintf("%s/%s/%s", tt.leaseDuration, tt.heartbeatPeriod, safeZone), func(t *testing.T) {
+			t.Parallel()
+			lockName := randStr()
+			t.Log("lockName:", lockName)
+			cfg, proxyCloser := proxyConfig(t)
+			svc := dynamodb.NewFromConfig(cfg)
+			logger := &bufferedLogger{}
+			c, err := dynamolock.New(svc,
+				"locks",
+				dynamolock.WithLeaseDuration(tt.leaseDuration),
+				dynamolock.WithOwnerName("TestSessionMonitorMissedCall#1"),
+				dynamolock.WithHeartbeatPeriod(tt.heartbeatPeriod),
+				dynamolock.WithPartitionKeyName("key"),
+				dynamolock.WithLogger(logger),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Log("ensuring table exists")
+			_, _ = c.CreateTable("locks",
+				dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+					ReadCapacityUnits:  aws.Int64(5),
+					WriteCapacityUnits: aws.Int64(5),
+				}),
+				dynamolock.WithCustomPartitionKeyName("key"),
+			)
+
+			sessionMonitorWasTriggered := make(chan struct{})
+
+			data := []byte("some content a")
+			lockedItem, err := c.AcquireLock(lockName,
+				dynamolock.WithData(data),
+				dynamolock.ReplaceData(),
+				dynamolock.WithSessionMonitor(safeZone, func() {
+					close(sessionMonitorWasTriggered)
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Log("lock acquired, closing proxy")
+			proxyCloser()
+			t.Log("proxy closed")
+
+			t.Log("waiting", tt.leaseDuration)
+			select {
+			case <-time.After(tt.leaseDuration):
+				t.Error("session monitor was not triggered")
+			case <-sessionMonitorWasTriggered:
+				t.Log("session monitor was triggered")
+			}
+			t.Log("isExpired", lockedItem.IsExpired())
+
+			t.Log(logger.String())
+		})
+	}
+}
+
+type bufferedLogger struct {
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	logger *log.Logger
+}
+
+func (bl *bufferedLogger) String() string {
+	bl.mu.Lock()
+	defer bl.mu.Unlock()
+	return bl.buf.String()
+}
+
+func (bl *bufferedLogger) Println(a ...any) {
+	bl.mu.Lock()
+	defer bl.mu.Unlock()
+	if bl.logger == nil {
+		bl.logger = log.New(&bl.buf, "", 0)
+	}
+	bl.logger.Println(a...)
+}
+
+type bufferedContextLogger struct {
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	logger *log.Logger
+}
+
+func (bl *bufferedContextLogger) String() string {
+	bl.mu.Lock()
+	defer bl.mu.Unlock()
+	return bl.buf.String()
+}
+
+func (bl *bufferedContextLogger) Println(_ context.Context, a ...any) {
+	bl.mu.Lock()
+	defer bl.mu.Unlock()
+	if bl.logger == nil {
+		bl.logger = log.New(&bl.buf, "", 0)
+	}
+	bl.logger.Println(a...)
 }

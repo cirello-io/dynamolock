@@ -22,7 +22,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -68,7 +70,8 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func defaultConfig(_ *testing.T) aws.Config {
+func defaultConfig(t *testing.T) aws.Config {
+	t.Helper()
 	return aws.Config{
 		Region: "us-west-2",
 		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
@@ -83,20 +86,75 @@ func defaultConfig(_ *testing.T) aws.Config {
 	}
 }
 
+func proxyConfig(t *testing.T) (aws.Config, func()) {
+	t.Helper()
+	l, err := net.Listen("tcp4", "localhost:0")
+	if err != nil {
+		t.Fatal("cannot start proxy:", err)
+	}
+	var (
+		outboundConns  sync.Map
+		proxyCloseOnce = sync.OnceFunc(func() {
+			l.Close()
+			t.Log("proxy listener stopped")
+			outboundConns.Range(func(key, value any) bool {
+				t.Log("proxy connection closed", key)
+				conn := value.(net.Conn)
+				conn.Close()
+				return true
+			})
+			t.Log("proxy stopped")
+		})
+	)
+	t.Cleanup(proxyCloseOnce)
+	go func() {
+		for {
+			inboundConn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			outboundConn, err := net.Dial("tcp4", "localhost:8000")
+			if err != nil {
+				return
+			}
+			outboundConns.Store(inboundConn.RemoteAddr().String(), outboundConn)
+			go func() { _, _ = io.Copy(inboundConn, outboundConn) }()
+			go func() { _, _ = io.Copy(outboundConn, inboundConn) }()
+		}
+	}()
+	return aws.Config{
+		Region: "us-west-2",
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{URL: "http://" + l.Addr().String() + "/"}, nil
+		}),
+		Credentials: credentials.StaticCredentialsProvider{
+			Value: aws.Credentials{
+				AccessKeyID:     "fakeMyKeyId",
+				SecretAccessKey: "fakeSecretAccessKey",
+			},
+		},
+		RetryMaxAttempts: 1_000_000,
+	}, proxyCloseOnce
+}
+
 func TestClientBasicFlow(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	logger := &bufferedContextLogger{}
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
-		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithContextLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		t.Log(logger.String())
+	})
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -343,6 +401,8 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 
 func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	t.Parallel()
+	lockName := randStr()
+
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
 		"locks",
@@ -365,8 +425,8 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	data := []byte("some content for uhura")
-	lockedItem, err := c.AcquireLock("uhura",
+	data := []byte("some content for " + lockName)
+	lockedItem, err := c.AcquireLock(lockName,
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithDeleteLockOnRelease(),
@@ -391,7 +451,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lockItemRead, err := c2.Get("uhura")
+	lockItemRead, err := c2.Get(lockName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -734,17 +794,21 @@ func TestClientClose(t *testing.T) {
 func TestInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	logger := &bufferedLogger{}
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		t.Log(logger.String())
+	})
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -1110,4 +1174,15 @@ func TestTableTags(t *testing.T) {
 	if !gotTags {
 		t.Fatal("API request missed tags")
 	}
+}
+
+var chars = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStr() string {
+	const length = 32
+	var b bytes.Buffer
+	for i := 0; i < length; i++ {
+		b.WriteByte(chars[rand.Intn(len(chars))])
+	}
+	return b.String()
 }

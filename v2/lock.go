@@ -122,10 +122,13 @@ func (l *Lock) IsAlmostExpired() (bool, error) {
 	}
 	l.semaphore.Lock()
 	defer l.semaphore.Unlock()
-	t, err := l.timeUntilDangerZoneEntered()
-	if err != nil {
-		return false, err
+	if l.sessionMonitor == nil {
+		return false, ErrSessionMonitorNotSet
 	}
+	if l.isExpired() {
+		return false, ErrLockAlreadyReleased
+	}
+	t := l.timeUntilDangerZoneEntered()
 	return t <= 0, nil
 }
 
@@ -137,12 +140,6 @@ var (
 	ErrOwnerMismatched       = errors.New("lock owner mismatched")
 )
 
-func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
-	if l.sessionMonitor == nil {
-		return 0, ErrSessionMonitorNotSet
-	}
-	if l.isExpired() {
-		return 0, ErrLockAlreadyReleased
-	}
-	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
+func (l *Lock) timeUntilDangerZoneEntered() time.Duration {
+	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime)
 }

@@ -105,7 +105,9 @@ func (c *Client) SendHeartbeatWithContext(ctx context.Context, lockItem *Lock, o
 	}
 	targetRVN := c.generateRecordVersionNumber()
 	err := c.sendHeartbeat(ctx, sho, currentRVN, targetRVN)
-	if err != nil {
+	if errors.Is(err, ctx.Err()) {
+		return ctx.Err()
+	} else if err != nil {
 		err = c.retryHeartbeat(ctx, err, sho, currentRVN, targetRVN)
 		err = parseDynamoDBError(err, "already acquired lock, stopping heartbeats")
 		if errors.As(err, new(*LockNotGrantedError)) {
