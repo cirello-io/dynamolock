@@ -1,6 +1,6 @@
 module cirello.io/dynamolock/v2
 
-go 1.21
+go 1.22
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.26.0
