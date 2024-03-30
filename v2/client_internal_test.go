@@ -28,21 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-type mockDynamoDBClient struct {
-	DynamoDBClient
-}
-
-func (m *mockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
-	return &dynamodb.GetItemOutput{}, nil
-}
-
-func (m *mockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
-	return &dynamodb.PutItemOutput{}, nil
-}
-
-func (m *mockDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
-	return &dynamodb.UpdateItemOutput{}, nil
-}
+//go:generate go run cirello.io/moq -out client_mock_dynamo_db_client_test.go . DynamoDBClient:mockDynamoDBClient
 
 /*
 This test checks for lock leaks during closing, that is, to make sure that no locks
@@ -50,7 +36,17 @@ are able to be acquired while the client is closing, and to ensure that we don't
 any locks in the internal lock map after a client is closed.
 */
 func TestCloseRace(t *testing.T) {
-	mockSvc := &mockDynamoDBClient{}
+	mockSvc := &mockDynamoDBClient{
+		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{}, nil
+		},
+		PutItemFunc: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			return &dynamodb.PutItemOutput{}, nil
+		},
+		UpdateItemFunc: func(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+			return &dynamodb.UpdateItemOutput{}, nil
+		},
+	}
 	// Most of the input into New isn't relevant since we're mocking
 	lockClient, err := New(mockSvc, "locksCloseRace",
 		WithLeaseDuration(3*time.Second),
