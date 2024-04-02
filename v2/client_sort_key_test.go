@@ -709,12 +709,16 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	logger := &bufferedLogger{}
+	t.Cleanup(func() {
+		t.Log(logger.String())
+	})
 	c, err := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
