@@ -3,8 +3,12 @@ name: Go
 on:
   push:
     branches: [master]
+    paths:
+      - 'v2/**'
   pull_request:
     branches: [master]
+    paths:
+      - 'v2/**'
   schedule:
     - cron: "0 0 * * *"
 
