@@ -37,7 +37,7 @@ const (
 
 func createSortKeyTable(t *testing.T, c *dynamolock.Client) (*dynamodb.CreateTableOutput, error) {
 	t.Helper()
-	return c.CreateTable(sortKeyTable,
+	return c.CreateTable(context.Background(), sortKeyTable,
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -64,7 +64,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	})
 
 	t.Log("ensuring table exists")
-	_, _ = c.CreateTable(sortKeyTable,
+	_, _ = c.CreateTable(context.Background(), sortKeyTable,
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -73,7 +73,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	)
 
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("spock",
+	lockedItem, err := c.AcquireLock(context.Background(), "spock",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 	)
@@ -87,17 +87,13 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	}
 
 	t.Log("cleaning lock")
-	success, err := c.ReleaseLock(lockedItem)
-	if !success {
-		t.Fatal("lost lock before release")
-	}
-	if err != nil {
+	if err := c.ReleaseLock(context.Background(), lockedItem); err != nil {
 		t.Fatal("error releasing lock:", err)
 	}
 	t.Log("done")
 
 	data2 := []byte("some content b")
-	lockedItem2, err := c.AcquireLock("spock",
+	lockedItem2, err := c.AcquireLock(context.Background(), "spock",
 		dynamolock.WithData(data2),
 		dynamolock.ReplaceData(),
 	)
@@ -129,7 +125,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	data3 := []byte("some content c")
-	_, err = c2.AcquireLock("spock",
+	_, err = c2.AcquireLock(context.Background(), "spock",
 		dynamolock.WithData(data3),
 		dynamolock.ReplaceData(),
 	)
@@ -137,9 +133,9 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 		t.Fatal("expected to fail to grab the lock")
 	}
 
-	_, _ = c.ReleaseLock(lockedItem2, dynamolock.WithDeleteLock(true))
+	_ = c.ReleaseLock(context.Background(), lockedItem2, dynamolock.WithDeleteLock(true))
 
-	lockedItem3, err := c2.AcquireLock("spock",
+	lockedItem3, err := c2.AcquireLock(context.Background(), "spock",
 		dynamolock.WithData(data3),
 		dynamolock.ReplaceData(),
 	)
@@ -165,13 +161,13 @@ func TestSortKeyReadLockContent(t *testing.T) {
 			dynamolock.WithPartitionKeyName("key"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		defer c.Close()
+		defer c.Close(context.Background())
 
 		t.Log("ensuring table exists")
 		_, _ = createSortKeyTable(t, c)
 
 		data := []byte("some content a")
-		lockedItem, err := c.AcquireLock("mccoy",
+		lockedItem, err := c.AcquireLock(context.Background(), "mccoy",
 			dynamolock.WithData(data),
 			dynamolock.ReplaceData(),
 		)
@@ -190,11 +186,11 @@ func TestSortKeyReadLockContent(t *testing.T) {
 			dynamolock.WithOwnerName("TestReadLockContent#2"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		lockItemRead, err := c2.Get("mccoy")
+		lockItemRead, err := c2.Get(context.Background(), "mccoy")
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c2.Close()
+		defer c2.Close(context.Background())
 
 		t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 		if got := string(lockItemRead.Data()); string(data) != got {
@@ -211,22 +207,22 @@ func TestSortKeyReadLockContent(t *testing.T) {
 			dynamolock.WithPartitionKeyName("key"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		defer c.Close()
+		defer c.Close(context.Background())
 
 		t.Log("ensuring table exists")
 		_, _ = createSortKeyTable(t, c)
 
 		data := []byte("hello janice")
-		lockedItem, err := c.AcquireLock("janice",
+		lockedItem, err := c.AcquireLock(context.Background(), "janice",
 			dynamolock.WithData(data),
 			dynamolock.ReplaceData(),
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer lockedItem.Close()
+		defer c.ReleaseLock(context.Background(), lockedItem)
 
-		cachedItem, err := c.Get("janice")
+		cachedItem, err := c.Get(context.Background(), "janice")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,13 +240,13 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	defer c.Close()
+	defer c.Close(context.Background())
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
 
 	data := []byte("some content for scotty")
-	lockedItem, err := c.AcquireLock("scotty",
+	lockedItem, err := c.AcquireLock(context.Background(), "scotty",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 	)
@@ -262,7 +258,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = c.ReleaseLock(context.Background(), lockedItem)
 
 	c2 := dynamolock.New(svc,
 		sortKeyTable,
@@ -271,11 +267,11 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
 
-	lockItemRead, err := c2.Get("scotty")
+	lockItemRead, err := c2.Get(context.Background(), "scotty")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer c2.Close(context.Background())
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); string(data) != got {
@@ -293,13 +289,13 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	defer c.Close()
+	defer c.Close(context.Background())
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
 
 	data := []byte("some content for uhura")
-	lockedItem, err := c.AcquireLock("uhura",
+	lockedItem, err := c.AcquireLock(context.Background(), "uhura",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithDeleteLockOnRelease(),
@@ -312,7 +308,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = c.ReleaseLock(context.Background(), lockedItem)
 
 	c2 := dynamolock.New(svc,
 		sortKeyTable,
@@ -321,11 +317,11 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
 
-	lockItemRead, err := c2.Get("uhura")
+	lockItemRead, err := c2.Get(context.Background(), "uhura")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer c2.Close(context.Background())
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); got != "" {
@@ -347,11 +343,11 @@ func TestSortKeyFailIfLocked(t *testing.T) {
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
 
-	_, err := c.AcquireLock("failIfLocked")
+	_, err := c.AcquireLock(context.Background(), "failIfLocked")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.AcquireLock("failIfLocked", dynamolock.FailIfLocked())
+	_, err = c.AcquireLock(context.Background(), "failIfLocked", dynamolock.FailIfLocked())
 	if !isLockNotGrantedError(err) {
 		t.Fatal("expected error (LockNotGrantedError) not found:", err)
 		return
@@ -374,7 +370,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 
 	t.Run("good attributes", func(t *testing.T) {
 		t.Parallel()
-		lockedItem, err := c.AcquireLock(
+		lockedItem, err := c.AcquireLock(context.Background(),
 			"good attributes",
 			dynamolock.WithAdditionalAttributes(map[string]types.AttributeValue{
 				"hello": &types.AttributeValueMemberS{Value: "world"},
@@ -387,11 +383,11 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 		if v, ok := attrs["hello"]; !ok || v == nil || readStringAttr(v) != "world" {
 			t.Error("corrupted attribute set")
 		}
-		lockedItem.Close()
+		_ = c.ReleaseLock(context.Background(), lockedItem)
 	})
 	t.Run("bad attributes", func(t *testing.T) {
 		t.Parallel()
-		_, err := c.AcquireLock(
+		_, err := c.AcquireLock(context.Background(),
 			"bad attributes",
 			dynamolock.WithAdditionalAttributes(map[string]types.AttributeValue{
 				"ownerName": &types.AttributeValueMemberS{Value: "fakeOwner"},
@@ -404,7 +400,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 	t.Run("recover attributes after release", func(t *testing.T) {
 		t.Parallel()
 		// Cover cirello-io/dynamolock#6
-		lockedItem, err := c.AcquireLock(
+		lockedItem, err := c.AcquireLock(context.Background(),
 			"recover attributes after release",
 			dynamolock.WithAdditionalAttributes(map[string]types.AttributeValue{
 				"hello": &types.AttributeValueMemberS{Value: "world"},
@@ -418,7 +414,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 			t.Error("corrupted attribute set")
 		}
 
-		relockedItem, err := c.AcquireLock(
+		relockedItem, err := c.AcquireLock(context.Background(),
 			"recover attributes after release",
 		)
 		if err != nil {
@@ -447,7 +443,7 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 
 	const lockName = "delete-lock-on-release"
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock(
+	lockedItem, err := c.AcquireLock(context.Background(),
 		lockName,
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
@@ -461,9 +457,9 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	c.ReleaseLock(context.Background(), lockedItem)
 
-	releasedLock, err := c.Get(lockName)
+	releasedLock, err := c.Get(context.Background(), lockName)
 	if err != nil {
 		t.Fatal("cannot load lock from the database:", err)
 	}
@@ -489,13 +485,13 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
 
-	lockedItem, err := c.AcquireLock("custom-refresh-period")
+	lockedItem, err := c.AcquireLock(context.Background(), "custom-refresh-period")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lockedItem.Close()
+	defer c.ReleaseLock(context.Background(), lockedItem)
 
-	_, _ = c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
+	_, _ = c.AcquireLock(context.Background(), "custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
 		t.Fatal("did not honor refreshPeriod")
 	}
@@ -517,19 +513,19 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	_, _ = createSortKeyTable(t, c)
 
 	t.Log("acquire lock")
-	l, err := c.AcquireLock("custom-additional-time-to-wait")
+	l, err := c.AcquireLock(context.Background(), "custom-additional-time-to-wait")
 	if err != nil {
 		t.Fatal(err)
 	}
 	go func() {
 		for i := 0; i < 3; i++ {
-			_ = c.SendHeartbeat(context.TODO(), l)
+			_ = c.SendHeartbeat(context.Background(), l)
 			time.Sleep(time.Second)
 		}
 	}()
 
 	t.Log("wait long enough to acquire lock again")
-	_, err = c.AcquireLock("custom-additional-time-to-wait",
+	_, err = c.AcquireLock(context.Background(), "custom-additional-time-to-wait",
 		dynamolock.WithAdditionalTimeToWaitForLock(6*time.Second),
 	)
 	if err != nil {
@@ -553,46 +549,46 @@ func TestSortKeyClientClose(t *testing.T) {
 	_, _ = createSortKeyTable(t, c)
 
 	t.Log("acquiring locks")
-	lockItem1, err := c.AcquireLock("bulkClose1")
+	lockItem1, err := c.AcquireLock(context.Background(), "bulkClose1")
 	if err != nil {
 		t.Fatal("cannot acquire lock1:", err)
 	}
 
-	if _, err := c.AcquireLock("bulkClose2"); err != nil {
+	if _, err := c.AcquireLock(context.Background(), "bulkClose2"); err != nil {
 		t.Fatal("cannot acquire lock2:", err)
 	}
 
-	if _, err := c.AcquireLock("bulkClose3"); err != nil {
+	if _, err := c.AcquireLock(context.Background(), "bulkClose3"); err != nil {
 		t.Fatal("cannot acquire lock3:", err)
 	}
 
 	t.Log("closing client")
-	if err := c.Close(); err != nil {
+	if err := c.Close(context.Background()); err != nil {
 		t.Fatal("cannot close lock client: ", err)
 	}
 
 	t.Log("close after close")
-	if err := c.Close(); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if err := c.Close(context.Background()); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (close after close):", err)
 	}
 	t.Log("heartbeat after close")
-	if err := c.SendHeartbeat(context.TODO(), lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if err := c.SendHeartbeat(context.Background(), lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (heartbeat after close):", err)
 	}
 	t.Log("release after close")
-	if _, err := c.ReleaseLock(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if err := c.ReleaseLock(context.Background(), lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (release after close):", err)
 	}
 	t.Log("get after close")
-	if _, err := c.Get("bulkClose1"); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if _, err := c.Get(context.Background(), "bulkClose1"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (get after close):", err)
 	}
 	t.Log("acquire after close")
-	if _, err := c.AcquireLock("acquireAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if _, err := c.AcquireLock(context.Background(), "acquireAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (acquire after close):", err)
 	}
 	t.Log("create table after close")
-	if _, err := c.CreateTable("createTableAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if _, err := c.CreateTable(context.Background(), "createTableAfterClose"); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (create table after close):", err)
 	}
 }
@@ -615,7 +611,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 	t.Run("release nil lock", func(t *testing.T) {
 		t.Parallel()
 		var l *dynamolock.Lock
-		if _, err := c.ReleaseLock(l); err == nil {
+		if err := c.ReleaseLock(context.Background(), l); err == nil {
 			t.Fatal("nil locks should trigger error on release:", err)
 		} else {
 			t.Log("nil lock:", err)
@@ -625,23 +621,23 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 	t.Run("release empty lock", func(t *testing.T) {
 		t.Parallel()
 		emptyLock := &dynamolock.Lock{}
-		if released, err := c.ReleaseLock(emptyLock); !errors.Is(err, dynamolock.ErrOwnerMismatched) {
+		if err := c.ReleaseLock(context.Background(), emptyLock); !errors.Is(err, dynamolock.ErrOwnerMismatched) {
 			t.Fatal("empty locks should return error:", err)
 		} else {
-			t.Log("emptyLock:", released, err)
+			t.Log("emptyLock:", err)
 		}
 	})
 
 	t.Run("duplicated lock close", func(t *testing.T) {
 		t.Parallel()
-		l, err := c.AcquireLock("duplicatedLockRelease")
+		l, err := c.AcquireLock(context.Background(), "duplicatedLockRelease")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := l.Close(); err != nil {
+		if err := c.ReleaseLock(context.Background(), l); err != nil {
 			t.Fatal("first close should be flawless:", err)
 		}
-		if err := l.Close(); err == nil {
+		if err := c.ReleaseLock(context.Background(), l); err != nil {
 			t.Fatal("second close should be fail")
 		}
 	})
@@ -649,7 +645,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 	t.Run("nil lock close", func(t *testing.T) {
 		t.Parallel()
 		var l *dynamolock.Lock
-		if err := l.Close(); !errors.Is(err, dynamolock.ErrCannotReleaseNullLock) {
+		if err := c.ReleaseLock(context.Background(), l); !errors.Is(err, dynamolock.ErrCannotReleaseNullLock) {
 			t.Fatal("wrong error when closing nil lock:", err)
 		}
 	})
@@ -676,17 +672,17 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 
 	const lockName = "lockNoData"
 
-	lockItem, err := c.AcquireLock(lockName)
+	lockItem, err := c.AcquireLock(context.Background(), lockName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	data := []byte("there is life after release")
-	if _, err := c.ReleaseLock(lockItem, dynamolock.WithDataAfterRelease(data)); err != nil {
+	if err := c.ReleaseLock(context.Background(), lockItem, dynamolock.WithDataAfterRelease(data)); err != nil {
 		t.Fatal(err)
 	}
 
-	relockedItem, err := c.AcquireLock(lockName)
+	relockedItem, err := c.AcquireLock(context.Background(), lockName)
 	if err != nil {
 		t.Fatal(err)
 	}

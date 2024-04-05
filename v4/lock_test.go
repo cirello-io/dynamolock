@@ -34,7 +34,6 @@ func TestNilLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	l.Close()
 }
 
 func TestEmptyLock(t *testing.T) {
@@ -49,5 +48,4 @@ func TestEmptyLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	l.Close()
 }

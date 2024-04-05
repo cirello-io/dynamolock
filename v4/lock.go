@@ -50,18 +50,6 @@ func (l *Lock) Data() []byte {
 	return l.data
 }
 
-// Close releases the lock.
-func (l *Lock) Close() error {
-	if l != nil && l.client != nil {
-		if l.IsExpired() {
-			return ErrLockAlreadyReleased
-		}
-		_, err := l.client.ReleaseLock(l)
-		return err
-	}
-	return ErrCannotReleaseNullLock
-}
-
 func (l *Lock) uniqueIdentifier() string {
 	return l.partitionKey
 }

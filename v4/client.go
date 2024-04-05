@@ -217,9 +217,9 @@ func WithAdditionalAttributes(attr map[string]types.AttributeValue) AcquireLockO
 	}
 }
 
-// AcquireLockWithContext holds the defined lock. The given context is passed
+// AcquireLock holds the defined lock. The given context is passed
 // down to the underlying dynamoDB call.
-func (c *Client) AcquireLockWithContext(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
+func (c *Client) AcquireLock(ctx context.Context, key string, opts ...AcquireLockOption) (*Lock, error) {
 	req := &acquireLockOptions{
 		partitionKey: key,
 	}
@@ -585,12 +585,12 @@ func (c *Client) generateRecordVersionNumber() string {
 	return fmt.Sprint(time.Now().UnixNano(), ":", internalstrings.Rand())
 }
 
-// CreateTableWithContext prepares a DynamoDB table with the right schema for it
+// CreateTable prepares a DynamoDB table with the right schema for it
 // to be used by this locking library. The table should be set up in advance,
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *Client) CreateTable(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -688,16 +688,16 @@ func (c *Client) createTable(ctx context.Context, opt *createDynamoDBTableOption
 	return c.dynamoDB.CreateTable(ctx, createTableInput)
 }
 
-// ReleaseLockWithContext releases the given lock if the current user still has it,
-// returning true if the lock was successfully released, and false if someone
+// ReleaseLock releases the given lock if the current user still has it,
+// returning nil if the lock was successfully released, and false if someone
 // else already stole the lock or a problem happened. Deletes the lock item if
 // it is released and deleteLockItemOnClose is set.
-func (c *Client) ReleaseLockWithContext(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
+func (c *Client) ReleaseLock(ctx context.Context, lockItem *Lock, opts ...ReleaseLockOption) error {
 	if c.isClosed() {
-		return false, ErrClientClosed
+		return ErrClientClosed
 	}
 	err := c.releaseLock(ctx, lockItem, opts...)
-	return err == nil, err
+	return err
 }
 
 // WithDeleteLock defines whether or not to delete the lock when releasing it.
@@ -843,16 +843,16 @@ func (c *Client) getItemKeys(lockItem *Lock) map[string]types.AttributeValue {
 	return key
 }
 
-// GetWithContext loads the given lock, but does not acquire the lock. It
+// Get loads the given lock, but does not acquire the lock. It
 // returns the metadata currently associated with the given lock. If the client
 // pointer is the one who acquired the lock, it will return the lock, and
 // operations such as releaseLock will work. However, if the client is not the
 // one who acquired the lock, then operations like releaseLock will not work
-// (after calling GetWithContext, the caller should check lockItem.isExpired()
+// (after calling Get, the caller should check lockItem.isExpired()
 // to figure out if it currently has the lock.) If the context is canceled, it
 // is going to return the context error on local cache hit. The given context is
 // passed down to the underlying dynamoDB call.
-func (c *Client) GetWithContext(ctx context.Context, key string) (*Lock, error) {
+func (c *Client) Get(ctx context.Context, key string) (*Lock, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -890,9 +890,9 @@ func (c *Client) isClosed() bool {
 	return closed
 }
 
-// CloseWithContext releases all of the locks. The given context is passed down
+// Close releases all of the locks. The given context is passed down
 // to the underlying dynamoDB calls.
-func (c *Client) CloseWithContext(ctx context.Context) error {
+func (c *Client) Close(ctx context.Context) error {
 	err := ErrClientClosed
 	c.closeOnce.Do(func() {
 		// Hold the write lock for the duration of the close operation
@@ -936,44 +936,4 @@ type DynamoDBClient interface {
 	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 	CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error)
-}
-
-// Sugar functions
-
-// GetWithContext loads the given lock, but does not acquire the lock. It
-// returns the metadata currently associated with the given lock. If the client
-// pointer is the one who acquired the lock, it will return the lock, and
-// operations such as releaseLock will work. However, if the client is not the
-// one who acquired the lock, then operations like releaseLock will not work
-// (after calling GetWithContext, the caller should check lockItem.isExpired()
-// to figure out if it currently has the lock.) If the context is canceled, it
-// is going to return the context error on local cache hit.
-func (c *Client) Get(key string) (*Lock, error) {
-	return c.GetWithContext(context.Background(), key)
-}
-
-// AcquireLock holds the defined lock.
-func (c *Client) AcquireLock(key string, opts ...AcquireLockOption) (*Lock, error) {
-	return c.AcquireLockWithContext(context.Background(), key, opts...)
-}
-
-// ReleaseLock releases the given lock if the current user still has it,
-// returning true if the lock was successfully released, and false if someone
-// else already stole the lock or a problem happened. Deletes the lock item if
-// it is released and deleteLockItemOnClose is set.
-func (c *Client) ReleaseLock(lockItem *Lock, opts ...ReleaseLockOption) (bool, error) {
-	return c.ReleaseLockWithContext(context.Background(), lockItem, opts...)
-}
-
-// Close releases all of the locks.
-func (c *Client) Close() error {
-	return c.CloseWithContext(context.Background())
-}
-
-// CreateTable prepares a DynamoDB table with the right schema for it to be used
-// by this locking library. The table should be set up in advance, because it
-// takes a few minutes for DynamoDB to provision a new instance. Also, if the
-// table already exists, it will return an error.
-func (c *Client) CreateTable(tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
-	return c.CreateTableWithContext(context.Background(), tableName, opts...)
 }
