@@ -220,7 +220,9 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.ReleaseLock(context.Background(), lockedItem)
+		defer func() {
+			_ = c.ReleaseLock(context.Background(), lockedItem)
+		}()
 
 		cachedItem, err := c.Get(context.Background(), "janice")
 		if err != nil {
@@ -457,7 +459,7 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	c.ReleaseLock(context.Background(), lockedItem)
+	_ = c.ReleaseLock(context.Background(), lockedItem)
 
 	releasedLock, err := c.Get(context.Background(), lockName)
 	if err != nil {
@@ -489,7 +491,7 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.ReleaseLock(context.Background(), lockedItem)
+	defer func() { _ = c.ReleaseLock(context.Background(), lockedItem) }()
 
 	_, _ = c.AcquireLock(context.Background(), "custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
