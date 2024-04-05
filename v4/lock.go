@@ -97,7 +97,6 @@ func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {
 	return addAttr
 }
 
-// Errors related to session manager life-cycle.
 var (
 	ErrCannotReleaseNullLock = errors.New("cannot release null lock item")
 	ErrOwnerMismatched       = errors.New("lock owner mismatched")

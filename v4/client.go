@@ -340,7 +340,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 
 	// if the existing lock does not exist or exists and is released
 	if existingLock == nil || existingLock.isReleased {
-		l, err := c.upsertAndMonitorNewOrReleasedLock(
+		l, err := c.upsertNewOrReleasedLock(
 			ctx,
 			getLockOptions.additionalAttributes,
 			getLockOptions.partitionKeyName,
@@ -378,7 +378,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 		}
 	case getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber && getLockOptions.lockTryingToBeAcquired.isExpired():
 		/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
-		l, err := c.upsertAndMonitorExpiredLock(
+		l, err := c.upsertExpiredLock(
 			ctx,
 			getLockOptions.additionalAttributes,
 			getLockOptions.partitionKeyName,
@@ -406,7 +406,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 	return nil, nil
 }
 
-func (c *Client) upsertAndMonitorExpiredLock(
+func (c *Client) upsertExpiredLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	key string,
@@ -431,12 +431,12 @@ func (c *Client) upsertAndMonitorExpiredLock(
 
 	c.logger.Println(ctx, "Acquiring an existing lock whose revisionVersionNumber did not change for ",
 		c.partitionKeyName, " partitionKeyName=", key)
-	return c.putLockItemAndStartSessionMonitor(
+	return c.putLockItem(
 		ctx, additionalAttributes, key, deleteLockOnRelease, newLockData,
 		recordVersionNumber, putItemRequest)
 }
 
-func (c *Client) upsertAndMonitorNewOrReleasedLock(
+func (c *Client) upsertNewOrReleasedLock(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	key string,
@@ -467,12 +467,12 @@ func (c *Client) upsertAndMonitorNewOrReleasedLock(
 	// expire sooner than it actually will, so they start counting towards
 	// its expiration before the Put succeeds
 	c.logger.Println(ctx, "Acquiring a new lock or an existing yet released lock on ", c.partitionKeyName, "=", key)
-	return c.putLockItemAndStartSessionMonitor(ctx, additionalAttributes, key,
+	return c.putLockItem(ctx, additionalAttributes, key,
 		deleteLockOnRelease, newLockData,
 		recordVersionNumber, req)
 }
 
-func (c *Client) putLockItemAndStartSessionMonitor(
+func (c *Client) putLockItem(
 	ctx context.Context,
 	additionalAttributes map[string]types.AttributeValue,
 	key string,
