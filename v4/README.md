@@ -1,7 +1,7 @@
 ## DynamoDB Lock Client for Go v4
 
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
-[![Build status](https://github.com/cirello-io/dynamolock/actions/workflows/go.yml/badge.svg)](https://github.com/cirello-io/dynamolock/actions/workflows/go.yml)
+[![Build status](https://github.com/cirello-io/dynamolock/actions/workflows/v4.yml/badge.svg)](https://github.com/cirello-io/dynamolock/actions/workflows/v4.yml)
 [![GoDoc](https://pkg.go.dev/badge/cirello.io/dynamolock/v4)](https://pkg.go.dev/cirello.io/dynamolock/v4)
 
 This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
