@@ -99,8 +99,6 @@ func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {
 
 // Errors related to session manager life-cycle.
 var (
-	ErrSessionMonitorNotSet  = errors.New("session monitor is not set")
-	ErrLockAlreadyReleased   = errors.New("lock is already released")
 	ErrCannotReleaseNullLock = errors.New("cannot release null lock item")
 	ErrOwnerMismatched       = errors.New("lock owner mismatched")
 )
