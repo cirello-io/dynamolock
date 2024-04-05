@@ -727,9 +727,9 @@ func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName str
 	return unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName, false)
 }
 
-func unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string, unsafeMatchOwnerOnly bool) expression.ConditionBuilder {
+func unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string, matchOwnerOnly bool) expression.ConditionBuilder {
 	var partitionExpr expression.ConditionBuilder
-	switch unsafeMatchOwnerOnly {
+	switch matchOwnerOnly {
 	case true:
 		partitionExpr = expression.AttributeExists(expression.Name(partitionKeyName))
 	case false:

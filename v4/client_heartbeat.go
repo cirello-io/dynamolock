@@ -18,7 +18,6 @@ package dynamolock
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,7 +30,6 @@ import (
 type SendHeartbeatOption func(*sendHeartbeatOptions)
 
 type sendHeartbeatOptions struct {
-	lockItem       *Lock
 	data           []byte
 	deleteData     bool
 	matchOwnerOnly bool
@@ -52,10 +50,11 @@ func ReplaceHeartbeatData(data []byte) SendHeartbeatOption {
 	}
 }
 
-// UnsafeMatchOwnerOnly helps dealing with network transient errors by relying
-// by expanding the heartbeat scope to include the lock owner. If lock owner is
-// globally unique, then this feature is safe to use.
-func UnsafeMatchOwnerOnly() SendHeartbeatOption {
+// MatchOwnerOnly helps dealing with network transient errors by ignoring
+// internal record version number and matching only against the owner and the
+// partition key name. If lock owner is globally unique, then this feature is
+// safe to use.
+func MatchOwnerOnly() SendHeartbeatOption {
 	return func(o *sendHeartbeatOptions) {
 		o.matchOwnerOnly = true
 	}
@@ -67,45 +66,33 @@ func (c *Client) SendHeartbeat(ctx context.Context, lockItem *Lock, opts ...Send
 	if c.isClosed() {
 		return ErrClientClosed
 	}
-	sho := &sendHeartbeatOptions{
-		lockItem: lockItem,
-	}
+	sho := &sendHeartbeatOptions{}
 	for _, opt := range opts {
 		opt(sho)
 	}
 	lockItem.semaphore.Lock()
 	defer lockItem.semaphore.Unlock()
-	currentRVN := lockItem.recordVersionNumber
-	if currentRVN == "" {
-		return ErrReadOnlyLockHeartbeat
-	}
-	targetRVN := c.generateRecordVersionNumber()
-	err := c.sendHeartbeat(ctx, sho, currentRVN, targetRVN)
-	if errors.Is(err, ctx.Err()) {
-		return ctx.Err()
-	} else if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions, currentRecordVersionNumber, targetRecordVersionNumber string) error {
-	leaseDuration := c.leaseDuration
-	lockItem := options.lockItem
 
 	if lockItem.isExpired() || lockItem.ownerName != c.ownerName || lockItem.isReleased {
 		return &LockNotGrantedError{msg: "cannot send heartbeat because lock is not granted"}
 	}
+	currentRecordVersionNumber := lockItem.recordVersionNumber
+	if currentRecordVersionNumber == "" {
+		return ErrReadOnlyLockHeartbeat
+	}
 
-	cond := unsafeOwnershipLockCondition(c.partitionKeyName, currentRecordVersionNumber, lockItem.ownerName, options.matchOwnerOnly)
+	targetRecordVersionNumber := c.generateRecordVersionNumber()
+	leaseDuration := c.leaseDuration
+
+	cond := unsafeOwnershipLockCondition(c.partitionKeyName, currentRecordVersionNumber, lockItem.ownerName, sho.matchOwnerOnly)
 	update := expression.
 		Set(leaseDurationAttr, expression.Value(leaseDuration.String())).
 		Set(rvnAttr, expression.Value(targetRecordVersionNumber))
 
-	if options.deleteData {
+	if sho.deleteData {
 		update.Remove(dataAttr)
-	} else if len(options.data) > 0 {
-		update.Set(dataAttr, expression.Value(options.data))
+	} else if len(sho.data) > 0 {
+		update.Set(dataAttr, expression.Value(sho.data))
 	}
 	updateExpr, _ := expression.NewBuilder().WithCondition(cond).WithUpdate(update).Build()
 
@@ -121,7 +108,9 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 	lastUpdateOfLock := time.Now()
 
 	_, err := c.dynamoDB.UpdateItem(ctx, updateItemInput)
-	if err != nil {
+	if errCtx := ctx.Err(); errCtx != nil {
+		return errCtx
+	} else if err != nil {
 		return err
 	}
 
