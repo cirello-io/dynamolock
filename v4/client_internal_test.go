@@ -27,8 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-//go:generate go run cirello.io/moq -out client_mock_dynamo_db_client_test.go . DynamoDBClient:mockDynamoDBClient
-
 /*
 This test checks for lock leaks during closing, that is, to make sure that no locks
 are able to be acquired while the client is closing, and to ensure that we don't have
@@ -36,7 +34,7 @@ any locks in the internal lock map after a client is closed.
 */
 func TestCloseRace(t *testing.T) {
 	t.Parallel()
-	mockSvc := &mockDynamoDBClient{
+	mockSvc := &DynamoDBClientMock{
 		GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{}, nil
 		},

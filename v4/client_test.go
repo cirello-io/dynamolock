@@ -814,19 +814,15 @@ func (t *testContextLogger) Println(_ context.Context, v ...any) {
 	t.t.Log(v...)
 }
 
-type fakeDynamoDB struct {
-	dynamolock.DynamoDBClient
-}
-
-func (*fakeDynamoDB) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
-	return nil, errors.New("service is offline")
-}
-
 func TestBadDynamoDB(t *testing.T) {
 	t.Parallel()
 	t.Run("get", func(t *testing.T) {
 		t.Parallel()
-		svc := &fakeDynamoDB{}
+		svc := &dynamolock.DynamoDBClientMock{
+			GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return nil, errors.New("service is offline")
+			},
+		}
 		c := dynamolock.New(svc, "locksHBError")
 		if _, err := c.Get(context.Background(), "bad-dynamodb"); err == nil {
 			t.Fatal("expected error missing")
@@ -834,7 +830,11 @@ func TestBadDynamoDB(t *testing.T) {
 	})
 	t.Run("acquire", func(t *testing.T) {
 		t.Parallel()
-		svc := &fakeDynamoDB{}
+		svc := &dynamolock.DynamoDBClientMock{
+			GetItemFunc: func(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+				return nil, errors.New("service is offline")
+			},
+		}
 		c := dynamolock.New(svc, "locksHBError")
 		if _, err := c.AcquireLock(context.Background(), "bad-dynamodb"); err == nil {
 			t.Fatal("expected error missing")
@@ -896,26 +896,24 @@ func TestAcquireLockOnCanceledContext(t *testing.T) {
 
 func TestTableTags(t *testing.T) {
 	t.Parallel()
-	svc := &interceptedDynamoDBClient{
-		DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+	var gotTags bool
+	tableTag := types.Tag{Key: aws.String("tagName"), Value: aws.String("tagValue")}
+	svc := &dynamolock.DynamoDBClientMock{
+		CreateTableFunc: func(ctx context.Context, cti *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
+			for _, tag := range cti.Tags {
+				if tag.Key == tableTag.Key && tag.Value == tableTag.Value {
+					gotTags = true
+					break
+				}
+			}
+			return &dynamodb.CreateTableOutput{}, nil
+		},
 	}
 	c := dynamolock.New(svc,
 		"locksWithTags",
 		dynamolock.WithOwnerName("TestTableTags#1"),
 		dynamolock.WithContextLogger(&testContextLogger{t: t}),
 	)
-
-	tableTag := types.Tag{Key: aws.String("tagName"), Value: aws.String("tagValue")}
-	var gotTags bool
-	svc.createTablePre = func(ctx context.Context, cti *dynamodb.CreateTableInput, f []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) {
-		for _, tag := range cti.Tags {
-			if tag.Key == tableTag.Key && tag.Value == tableTag.Value {
-				gotTags = true
-				break
-			}
-		}
-		return ctx, cti, f
-	}
 	if _, err := c.CreateTable(context.Background(), "locksWithTags", dynamolock.WithTags([]types.Tag{tableTag})); err != nil {
 		t.Fatal(err)
 	}
@@ -964,35 +962,4 @@ func (bl *bufferedContextLogger) Println(_ context.Context, a ...any) {
 		bl.logger = log.New(&bl.buf, "", 0)
 	}
 	bl.logger.Println(a...)
-}
-
-type interceptedDynamoDBClient struct {
-	dynamolock.DynamoDBClient
-
-	createTablePre func(context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options))
-	getItemPost    func(*dynamodb.GetItemOutput, error) (*dynamodb.GetItemOutput, error)
-	updateItemPost func(*dynamodb.UpdateItemOutput, error) (*dynamodb.UpdateItemOutput, error)
-}
-
-func (m *interceptedDynamoDBClient) CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
-	if m.createTablePre != nil {
-		ctx, params, optFns = m.createTablePre(ctx, params, optFns)
-	}
-	return m.DynamoDBClient.CreateTable(ctx, params, optFns...)
-}
-
-func (m *interceptedDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
-	out, err := m.DynamoDBClient.GetItem(ctx, params, optFns...)
-	if m.getItemPost == nil {
-		return out, err
-	}
-	return m.getItemPost(out, err)
-}
-
-func (m *interceptedDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
-	out, err := m.DynamoDBClient.UpdateItem(ctx, params, optFns...)
-	if m.updateItemPost == nil {
-		return out, err
-	}
-	return m.updateItemPost(out, err)
 }

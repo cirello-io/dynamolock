@@ -9,16 +9,16 @@ import (
 	"sync"
 )
 
-// Ensure, that mockDynamoDBClient does implement DynamoDBClient.
+// Ensure, that DynamoDBClientMock does implement DynamoDBClient.
 // If this is not the case, regenerate this file with moq.
-var _ DynamoDBClient = &mockDynamoDBClient{}
+var _ DynamoDBClient = &DynamoDBClientMock{}
 
-// mockDynamoDBClient is a mock implementation of DynamoDBClient.
+// DynamoDBClientMock is a mock implementation of DynamoDBClient.
 //
 //	func TestSomethingThatUsesDynamoDBClient(t *testing.T) {
 //
 //		// make and configure a mocked DynamoDBClient
-//		mockedDynamoDBClient := &mockDynamoDBClient{
+//		mockedDynamoDBClient := &DynamoDBClientMock{
 //			CreateTableFunc: func(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
 //				panic("mock out the CreateTable method")
 //			},
@@ -40,7 +40,7 @@ var _ DynamoDBClient = &mockDynamoDBClient{}
 //		// and then make assertions.
 //
 //	}
-type mockDynamoDBClient struct {
+type DynamoDBClientMock struct {
 	// CreateTableFunc mocks the CreateTable method.
 	CreateTableFunc func(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error)
 
@@ -112,9 +112,9 @@ type mockDynamoDBClient struct {
 }
 
 // CreateTable calls CreateTableFunc.
-func (mock *mockDynamoDBClient) CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
+func (mock *DynamoDBClientMock) CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
 	if mock.CreateTableFunc == nil {
-		panic("mockDynamoDBClient.CreateTableFunc: method is nil but DynamoDBClient.CreateTable was just called")
+		panic("DynamoDBClientMock.CreateTableFunc: method is nil but DynamoDBClient.CreateTable was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -135,7 +135,7 @@ func (mock *mockDynamoDBClient) CreateTable(ctx context.Context, params *dynamod
 // Check the length with:
 //
 //	len(mockedDynamoDBClient.CreateTableCalls())
-func (mock *mockDynamoDBClient) CreateTableCalls() []struct {
+func (mock *DynamoDBClientMock) CreateTableCalls() []struct {
 	Ctx    context.Context
 	Params *dynamodb.CreateTableInput
 	OptFns []func(*dynamodb.Options)
@@ -152,9 +152,9 @@ func (mock *mockDynamoDBClient) CreateTableCalls() []struct {
 }
 
 // DeleteItem calls DeleteItemFunc.
-func (mock *mockDynamoDBClient) DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+func (mock *DynamoDBClientMock) DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
 	if mock.DeleteItemFunc == nil {
-		panic("mockDynamoDBClient.DeleteItemFunc: method is nil but DynamoDBClient.DeleteItem was just called")
+		panic("DynamoDBClientMock.DeleteItemFunc: method is nil but DynamoDBClient.DeleteItem was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -175,7 +175,7 @@ func (mock *mockDynamoDBClient) DeleteItem(ctx context.Context, params *dynamodb
 // Check the length with:
 //
 //	len(mockedDynamoDBClient.DeleteItemCalls())
-func (mock *mockDynamoDBClient) DeleteItemCalls() []struct {
+func (mock *DynamoDBClientMock) DeleteItemCalls() []struct {
 	Ctx    context.Context
 	Params *dynamodb.DeleteItemInput
 	OptFns []func(*dynamodb.Options)
@@ -192,9 +192,9 @@ func (mock *mockDynamoDBClient) DeleteItemCalls() []struct {
 }
 
 // GetItem calls GetItemFunc.
-func (mock *mockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+func (mock *DynamoDBClientMock) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	if mock.GetItemFunc == nil {
-		panic("mockDynamoDBClient.GetItemFunc: method is nil but DynamoDBClient.GetItem was just called")
+		panic("DynamoDBClientMock.GetItemFunc: method is nil but DynamoDBClient.GetItem was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -215,7 +215,7 @@ func (mock *mockDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.Ge
 // Check the length with:
 //
 //	len(mockedDynamoDBClient.GetItemCalls())
-func (mock *mockDynamoDBClient) GetItemCalls() []struct {
+func (mock *DynamoDBClientMock) GetItemCalls() []struct {
 	Ctx    context.Context
 	Params *dynamodb.GetItemInput
 	OptFns []func(*dynamodb.Options)
@@ -232,9 +232,9 @@ func (mock *mockDynamoDBClient) GetItemCalls() []struct {
 }
 
 // PutItem calls PutItemFunc.
-func (mock *mockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+func (mock *DynamoDBClientMock) PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	if mock.PutItemFunc == nil {
-		panic("mockDynamoDBClient.PutItemFunc: method is nil but DynamoDBClient.PutItem was just called")
+		panic("DynamoDBClientMock.PutItemFunc: method is nil but DynamoDBClient.PutItem was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -255,7 +255,7 @@ func (mock *mockDynamoDBClient) PutItem(ctx context.Context, params *dynamodb.Pu
 // Check the length with:
 //
 //	len(mockedDynamoDBClient.PutItemCalls())
-func (mock *mockDynamoDBClient) PutItemCalls() []struct {
+func (mock *DynamoDBClientMock) PutItemCalls() []struct {
 	Ctx    context.Context
 	Params *dynamodb.PutItemInput
 	OptFns []func(*dynamodb.Options)
@@ -272,9 +272,9 @@ func (mock *mockDynamoDBClient) PutItemCalls() []struct {
 }
 
 // UpdateItem calls UpdateItemFunc.
-func (mock *mockDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+func (mock *DynamoDBClientMock) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
 	if mock.UpdateItemFunc == nil {
-		panic("mockDynamoDBClient.UpdateItemFunc: method is nil but DynamoDBClient.UpdateItem was just called")
+		panic("DynamoDBClientMock.UpdateItemFunc: method is nil but DynamoDBClient.UpdateItem was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -295,7 +295,7 @@ func (mock *mockDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb
 // Check the length with:
 //
 //	len(mockedDynamoDBClient.UpdateItemCalls())
-func (mock *mockDynamoDBClient) UpdateItemCalls() []struct {
+func (mock *DynamoDBClientMock) UpdateItemCalls() []struct {
 	Ctx    context.Context
 	Params *dynamodb.UpdateItemInput
 	OptFns []func(*dynamodb.Options)
