@@ -42,7 +42,6 @@ limitations under the License.
 //		c, err := dynamolock.New(dynamodb.NewFromConfig(cfg),
 //			"locks",
 //			dynamolock.WithLeaseDuration(3*time.Second),
-//			dynamolock.WithHeartbeatPeriod(1*time.Second),
 //		)
 //		if err != nil {
 //			log.Fatal(err)
@@ -68,6 +67,9 @@ limitations under the License.
 //		if err != nil {
 //			log.Fatal(err)
 //		}
+//
+//		// here you can periodically call if you need a long lived lock:
+//		// err := c.SendHeartbeat(ctx, lockedItem)
 //
 //		log.Println("lock content:", string(lockedItem.Data()))
 //		if got := string(lockedItem.Data()); string(data) != got {

@@ -19,10 +19,8 @@ package dynamolock_test
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -33,6 +31,7 @@ import (
 	"time"
 
 	"cirello.io/dynamolock/v4"
+	internalstrings "cirello.io/dynamolock/v4/internal/strings"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -90,17 +89,13 @@ func TestClientBasicFlow(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	logger := &bufferedContextLogger{}
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
 		dynamolock.WithContextLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		t.Log(logger.String())
 	})
@@ -146,16 +141,24 @@ func TestClientBasicFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	go func() {
+		for {
+			err := c.SendHeartbeat(context.Background(), lockedItem2)
+			if err != nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
 
 	t.Log("lock content (again):", string(lockedItem2.Data()))
 	if got := string(lockedItem2.Data()); string(data2) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data2), " got:", got)
 	}
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#2"),
 	)
 	if err != nil {
@@ -170,7 +173,7 @@ func TestClientBasicFlow(t *testing.T) {
 		t.Fatal("expected to fail to grab the lock")
 	}
 
-	_, _ = c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
+	_, _ = c.ReleaseLock(lockedItem2, dynamolock.WithDeleteLock(true))
 
 	lockedItem3, err := c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
@@ -191,16 +194,12 @@ func TestReadLockContent(t *testing.T) {
 	t.Run("standard load", func(t *testing.T) {
 		t.Parallel()
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
-		c, err := dynamolock.New(svc,
+		c := dynamolock.New(svc,
 			"locks",
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#1"),
 			dynamolock.WithPartitionKeyName("key"),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
 		defer c.Close()
 
 		t.Log("ensuring table exists")
@@ -226,10 +225,9 @@ func TestReadLockContent(t *testing.T) {
 			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 		}
 
-		c2, err := dynamolock.New(svc,
+		c2 := dynamolock.New(svc,
 			"locks",
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#2"),
 		)
 		if err != nil {
@@ -250,16 +248,12 @@ func TestReadLockContent(t *testing.T) {
 	t.Run("cached load", func(t *testing.T) {
 		t.Parallel()
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
-		c, err := dynamolock.New(svc,
+		c := dynamolock.New(svc,
 			"locks",
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContentCachedLoad#1"),
 			dynamolock.WithPartitionKeyName("key"),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
 		defer c.Close()
 
 		t.Log("ensuring table exists")
@@ -292,16 +286,12 @@ func TestReadLockContent(t *testing.T) {
 func TestReadLockContentAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer c.Close()
 
 	t.Log("ensuring table exists")
@@ -328,10 +318,9 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#2"),
 	)
 	if err != nil {
@@ -352,19 +341,15 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 
 func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	t.Parallel()
-	lockName := randStr(t)
+	lockName := internalstrings.Rand()
 
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer c.Close()
 
 	t.Log("ensuring table exists")
@@ -392,10 +377,9 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterDeleteOnRelease#2"),
 	)
 	if err != nil {
@@ -414,33 +398,15 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	}
 }
 
-func TestInvalidLeaseHeartbeatRation(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	_, err := dynamolock.New(svc,
-		"locks",
-		dynamolock.WithLeaseDuration(1*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-	)
-	if err == nil {
-		t.Fatal("expected error not found")
-	}
-}
-
 func TestFailIfLocked(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("FailIfLocked#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
@@ -450,7 +416,7 @@ func TestFailIfLocked(t *testing.T) {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 
-	_, err = c.AcquireLock("failIfLocked")
+	_, err := c.AcquireLock("failIfLocked")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,16 +430,12 @@ func TestFailIfLocked(t *testing.T) {
 func TestClientWithAdditionalAttributes(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -546,16 +508,12 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 func TestDeleteLockOnRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestDeleteLockOnRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -598,17 +556,13 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestCustomRefreshPeriod#1"),
 		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -634,17 +588,13 @@ func TestCustomRefreshPeriod(t *testing.T) {
 func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestCustomAdditionalTimeToWaitForLock#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -662,7 +612,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 	go func() {
 		for i := 0; i < 3; i++ {
-			_ = c.SendHeartbeat(l)
+			_ = c.SendHeartbeat(context.TODO(), l)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -679,17 +629,13 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 func TestClientClose(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientClose#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal("cannot create the client:", err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -724,7 +670,7 @@ func TestClientClose(t *testing.T) {
 		t.Error("expected error missing (close after close):", err)
 	}
 	t.Log("heartbeat after close")
-	if err := c.SendHeartbeat(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if err := c.SendHeartbeat(context.TODO(), lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (heartbeat after close):", err)
 	}
 	t.Log("release after close")
@@ -749,17 +695,13 @@ func TestInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	logger := &bufferedLogger{}
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
 		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		t.Log(logger.String())
 	})
@@ -819,17 +761,13 @@ func TestInvalidReleases(t *testing.T) {
 func TestClientWithDataAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -880,139 +818,6 @@ func (t *testContextLogger) Println(_ context.Context, v ...any) {
 	t.t.Log(v...)
 }
 
-func TestHeartbeatLoss(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	heartbeatPeriod := 5 * time.Second
-	c, err := dynamolock.New(svc,
-		"locks",
-		dynamolock.WithLeaseDuration(1*time.Hour),
-		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
-		dynamolock.WithOwnerName("TestHeartbeatLoss#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("ensuring table exists")
-	_, _ = c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
-		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
-	)
-
-	const lockName = "heartbeatLoss"
-
-	lockItem1, err := c.AcquireLock(lockName + "1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(heartbeatPeriod)
-	if _, err := c.ReleaseLock(lockItem1); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(heartbeatPeriod)
-
-	lockItem2, err := c.AcquireLock(lockName + "2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer lockItem2.Close()
-
-	rvn1 := lockItem2.RVN()
-	time.Sleep(heartbeatPeriod + 1*time.Second)
-	rvn2 := lockItem2.RVN()
-
-	t.Log("RVNs", rvn1, rvn2)
-	if rvn1 == rvn2 {
-		t.Fatal("is the heartbeat running?")
-	}
-}
-
-func TestHeartbeatError(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-
-	var buf lockStepBuffer
-	fatal := func(a ...any) {
-		t.Log(buf.String())
-		t.Fatal(a...)
-	}
-	defer func() {
-		t.Log(buf.String())
-	}()
-	logger := log.New(&buf, "", 0)
-
-	heartbeatPeriod := 2 * time.Second
-	c, err := dynamolock.New(svc,
-		"locksHBError",
-		dynamolock.WithLeaseDuration(1*time.Hour),
-		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
-		dynamolock.WithOwnerName("TestHeartbeatError#1"),
-		dynamolock.WithLogger(logger),
-		dynamolock.WithPartitionKeyName("key"),
-	)
-	if err != nil {
-		fatal(err)
-	}
-
-	t.Log("ensuring table exists")
-	_, err = c.CreateTable("locksHBError",
-		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
-		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
-	)
-	if err != nil {
-		fatal("cannot create table", err)
-	}
-
-	const lockName = "heartbeatError"
-	if _, err := c.AcquireLock(lockName); err != nil {
-		fatal(err)
-	}
-	time.Sleep(2 * heartbeatPeriod)
-
-	_, err = svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{
-		TableName: aws.String("locksHBError"),
-	})
-	if err != nil {
-		fatal(fmt.Sprintf("could not delete table: %v", err))
-	}
-
-	time.Sleep(heartbeatPeriod)
-
-	c.Close()
-
-	time.Sleep(heartbeatPeriod)
-
-	if !strings.Contains(buf.String(), "error sending heartbeat to heartbeatError") {
-		fatal("cannot prove that heartbeat failed after the table has been deleted")
-	}
-}
-
-type lockStepBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (l *lockStepBuffer) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.buf.Write(p)
-}
-
-func (l *lockStepBuffer) String() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.buf.String()
-}
-
 type fakeDynamoDB struct {
 	dynamolock.DynamoDBClient
 }
@@ -1026,10 +831,7 @@ func TestBadDynamoDB(t *testing.T) {
 	t.Run("get", func(t *testing.T) {
 		t.Parallel()
 		svc := &fakeDynamoDB{}
-		c, err := dynamolock.New(svc, "locksHBError")
-		if err != nil {
-			t.Fatal(err)
-		}
+		c := dynamolock.New(svc, "locksHBError")
 		if _, err := c.Get("bad-dynamodb"); err == nil {
 			t.Fatal("expected error missing")
 		}
@@ -1037,10 +839,7 @@ func TestBadDynamoDB(t *testing.T) {
 	t.Run("acquire", func(t *testing.T) {
 		t.Parallel()
 		svc := &fakeDynamoDB{}
-		c, err := dynamolock.New(svc, "locksHBError")
-		if err != nil {
-			t.Fatal(err)
-		}
+		c := dynamolock.New(svc, "locksHBError")
 		if _, err := c.AcquireLock("bad-dynamodb"); err == nil {
 			t.Fatal("expected error missing")
 		}
@@ -1065,20 +864,16 @@ func isLockNotGrantedError(err error) bool {
 func TestAcquireLockOnCloseClient(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestAcquireLockOnCloseClient#1"),
 		dynamolock.WithContextLogger(&testContextLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	c.Close()
 
-	_, err = c.AcquireLock("closeClientLock")
+	_, err := c.AcquireLock("closeClientLock")
 	if !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Fatal("missing expected error:", err)
 	}
@@ -1087,21 +882,17 @@ func TestAcquireLockOnCloseClient(t *testing.T) {
 func TestAcquireLockOnCanceledContext(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestAcquireLockOnCanceledContext#1"),
 		dynamolock.WithContextLogger(&testContextLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = c.GetWithContext(ctx, "closeClientLock")
+	_, err := c.GetWithContext(ctx, "closeClientLock")
 	if !errors.Is(err, ctx.Err()) {
 		t.Fatal("missing expected error:", err)
 	}
@@ -1112,14 +903,12 @@ func TestTableTags(t *testing.T) {
 	svc := &interceptedDynamoDBClient{
 		DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
 	}
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		"locksWithTags",
 		dynamolock.WithOwnerName("TestTableTags#1"),
 		dynamolock.WithContextLogger(&testContextLogger{t: t}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	tableTag := types.Tag{Key: aws.String("tagName"), Value: aws.String("tagValue")}
 	var gotTags bool
 	svc.createTablePre = func(ctx context.Context, cti *dynamodb.CreateTableInput, f []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) {
@@ -1137,19 +926,6 @@ func TestTableTags(t *testing.T) {
 	if !gotTags {
 		t.Fatal("API request missed tags")
 	}
-}
-
-func randStr(t *testing.T) string {
-	t.Helper()
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	body := make([]byte, 32)
-	if _, err := rand.Read(body); err != nil {
-		t.Fatal(err)
-	}
-	for i, b := range body {
-		body[i] = letters[b%byte(len(letters))]
-	}
-	return string(body)
 }
 
 type bufferedLogger struct {
@@ -1192,4 +968,35 @@ func (bl *bufferedContextLogger) Println(_ context.Context, a ...any) {
 		bl.logger = log.New(&bl.buf, "", 0)
 	}
 	bl.logger.Println(a...)
+}
+
+type interceptedDynamoDBClient struct {
+	dynamolock.DynamoDBClient
+
+	createTablePre func(context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options))
+	getItemPost    func(*dynamodb.GetItemOutput, error) (*dynamodb.GetItemOutput, error)
+	updateItemPost func(*dynamodb.UpdateItemOutput, error) (*dynamodb.UpdateItemOutput, error)
+}
+
+func (m *interceptedDynamoDBClient) CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error) {
+	if m.createTablePre != nil {
+		ctx, params, optFns = m.createTablePre(ctx, params, optFns)
+	}
+	return m.DynamoDBClient.CreateTable(ctx, params, optFns...)
+}
+
+func (m *interceptedDynamoDBClient) GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	out, err := m.DynamoDBClient.GetItem(ctx, params, optFns...)
+	if m.getItemPost == nil {
+		return out, err
+	}
+	return m.getItemPost(out, err)
+}
+
+func (m *interceptedDynamoDBClient) UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
+	out, err := m.DynamoDBClient.UpdateItem(ctx, params, optFns...)
+	if m.updateItemPost == nil {
+		return out, err
+	}
+	return m.updateItemPost(out, err)
 }

@@ -72,22 +72,9 @@ func UnsafeMatchOwnerOnly() SendHeartbeatOption {
 	}
 }
 
-// SendHeartbeat indicates that the given lock is still being worked on. If
-// using WithHeartbeatPeriod > 0 when setting up this object, then this method
-// is unnecessary, because the background thread will be periodically calling it
-// and sending heartbeats. However, if WithHeartbeatPeriod = 0, then this method
-// must be called to instruct DynamoDB that the lock should not be expired.
-func (c *Client) SendHeartbeat(lockItem *Lock, opts ...SendHeartbeatOption) error {
-	return c.SendHeartbeatWithContext(context.Background(), lockItem, opts...)
-}
-
-// SendHeartbeatWithContext indicates that the given lock is still being worked
-// on. If using WithHeartbeatPeriod > 0 when setting up this object, then this
-// method is unnecessary, because the background thread will be periodically
-// calling it and sending heartbeats. However, if WithHeartbeatPeriod = 0, then
-// this method must be called to instruct DynamoDB that the lock should not be
-// expired. The given context is passed down to the underlying dynamoDB call.
-func (c *Client) SendHeartbeatWithContext(ctx context.Context, lockItem *Lock, opts ...SendHeartbeatOption) error {
+// SendHeartbeat indicates that the given lock is still being worked
+// on. The given context is passed down to the underlying dynamoDB call.
+func (c *Client) SendHeartbeat(ctx context.Context, lockItem *Lock, opts ...SendHeartbeatOption) error {
 	if c.isClosed() {
 		return ErrClientClosed
 	}

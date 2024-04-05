@@ -18,16 +18,14 @@ package dynamolock
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"runtime"
 	"sync"
 	"time"
 
+	internalstrings "cirello.io/dynamolock/v4/internal/strings"
 	internalsync "cirello.io/dynamolock/v4/internal/sync"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
@@ -85,14 +83,11 @@ type Client struct {
 	sortKeyName      string
 	sortKeyValue     string
 
-	leaseDuration   time.Duration
-	heartbeatPeriod time.Duration
-	ownerName       string
-	locks           internalsync.Map[string, *Lock]
+	leaseDuration time.Duration
+	ownerName     string
+	locks         internalsync.Map[string, *Lock]
 
 	logger ContextLogger
-
-	stopHeartbeat context.CancelFunc
 
 	mu        sync.RWMutex
 	closeOnce sync.Once
@@ -102,40 +97,24 @@ type Client struct {
 const (
 	defaultPartitionKeyName = "key"
 	defaultLeaseDuration    = 20 * time.Second
-	defaultHeartbeatPeriod  = 5 * time.Second
 )
 
 // New creates a new dynamoDB based distributed lock client.
-func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) (*Client, error) {
+func New(dynamoDB DynamoDBClient, tableName string, opts ...ClientOption) *Client {
 	c := &Client{
 		dynamoDB:         dynamoDB,
 		tableName:        tableName,
 		partitionKeyName: defaultPartitionKeyName,
 		leaseDuration:    defaultLeaseDuration,
-		heartbeatPeriod:  defaultHeartbeatPeriod,
-		ownerName:        randString(),
+		ownerName:        internalstrings.Rand(),
 		logger: &contextLoggerAdapter{
 			logger: log.New(io.Discard, "", 0),
 		},
-		stopHeartbeat: func() {},
 	}
-
 	for _, opt := range opts {
 		opt(c)
 	}
-
-	if c.leaseDuration < 2*c.heartbeatPeriod {
-		return nil, errors.New("heartbeat period must be no more than half the length of the Lease Duration, " +
-			"or locks might expire due to the heartbeat thread taking too long to update them (recommendation is to make it much greater, for example " +
-			"4+ times greater)")
-	}
-
-	if c.heartbeatPeriod > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		c.stopHeartbeat = cancel
-		go c.heartbeat(ctx)
-	}
-	return c, nil
+	return c
 }
 
 // ClientOption reconfigure the lock client creation.
@@ -164,19 +143,6 @@ func WithOwnerName(s string) ClientOption {
 // WithLeaseDuration defines how long should the lease be held.
 func WithLeaseDuration(d time.Duration) ClientOption {
 	return func(c *Client) { c.leaseDuration = d }
-}
-
-// WithHeartbeatPeriod defines the frequency of the heartbeats. Set to zero to
-// disable it. Heartbeats should have no more than half of the duration of the
-// lease.
-func WithHeartbeatPeriod(d time.Duration) ClientOption {
-	return func(c *Client) { c.heartbeatPeriod = d }
-}
-
-// DisableHeartbeat disables automatic hearbeats. Use SendHeartbeat to freshen
-// up the lock.
-func DisableHeartbeat() ClientOption {
-	return WithHeartbeatPeriod(0)
 }
 
 // WithLogger injects a logger into the client, so its internals can be
@@ -616,65 +582,7 @@ func (c *Client) createLockItem(opt getLockOptions, item map[string]types.Attrib
 }
 
 func (c *Client) generateRecordVersionNumber() string {
-	return fmt.Sprint(time.Now().UnixNano(), ":", randString())
-}
-
-var base32Encoder = base32.StdEncoding.WithPadding(base32.NoPadding)
-
-func randString() string {
-	randomBytes := make([]byte, 32)
-	for {
-		if _, err := io.ReadFull(rand.Reader, randomBytes); err == nil {
-			break
-		}
-	}
-	return base32Encoder.EncodeToString(randomBytes)
-}
-func (c *Client) heartbeat(rootCtx context.Context) {
-	c.logger.Println(rootCtx, "heartbeats starting")
-	defer c.logger.Println(rootCtx, "heartbeats done")
-	tick := time.NewTicker(c.heartbeatPeriod)
-	defer tick.Stop()
-	for {
-		select {
-		case <-rootCtx.Done():
-			c.logger.Println(rootCtx, "client closed, stopping heartbeat")
-			return
-		case t := <-tick.C:
-			c.logger.Println(rootCtx, "heartbeat at:", t)
-		}
-		var (
-			wg        sync.WaitGroup
-			maxProcs  = runtime.GOMAXPROCS(0)
-			lockItems = make(chan *Lock, maxProcs)
-		)
-		c.logger.Println(rootCtx, "heartbeat concurrency level:", maxProcs)
-		for i := 0; i < maxProcs; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for lockItem := range lockItems {
-					c.heartbeatLock(rootCtx, lockItem)
-				}
-			}()
-		}
-		c.locks.Range(func(_ string, lockItem *Lock) bool {
-			lockItems <- lockItem
-			return true
-		})
-		close(lockItems)
-		c.logger.Println(rootCtx, "all heartbeats are dispatched")
-		wg.Wait()
-		c.logger.Println(rootCtx, "all heartbeats are processed")
-	}
-}
-
-func (c *Client) heartbeatLock(rootCtx context.Context, lockItem *Lock) {
-	ctx, cancel := context.WithTimeout(rootCtx, c.heartbeatPeriod)
-	defer cancel()
-	if err := c.SendHeartbeatWithContext(ctx, lockItem); err != nil {
-		c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
-	}
+	return fmt.Sprint(time.Now().UnixNano(), ":", internalstrings.Rand())
 }
 
 // CreateTableWithContext prepares a DynamoDB table with the right schema for it
@@ -992,7 +900,6 @@ func (c *Client) CloseWithContext(ctx context.Context) error {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		err = c.releaseAllLocks(ctx)
-		c.stopHeartbeat()
 		c.closed = true
 	})
 	return err

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -51,23 +50,27 @@ func createSortKeyTable(t *testing.T, c *dynamolock.Client) (*dynamodb.CreateTab
 func TestSortKeyClientBasicFlow(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	logger := &bufferedLogger{}
-	c, err := dynamolock.New(svc,
+	logger := &bufferedContextLogger{}
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
-		dynamolock.WithLogger(logger),
+		dynamolock.WithOwnerName("TestSortKeyClientBasicFlow#1"),
+		dynamolock.WithContextLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { t.Log(logger.String()) })
+	t.Cleanup(func() {
+		t.Log(logger.String())
+	})
 
 	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(t, c)
+	_, _ = c.CreateTable(sortKeyTable,
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
 
 	data := []byte("some content a")
 	lockedItem, err := c.AcquireLock("spock",
@@ -101,17 +104,25 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	go func() {
+		for {
+			err := c.SendHeartbeat(context.Background(), lockedItem2)
+			if err != nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
 
 	t.Log("lock content (again):", string(lockedItem2.Data()))
 	if got := string(lockedItem2.Data()); string(data2) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data2), " got:", got)
 	}
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestClientBasicFlow#2"),
+		dynamolock.WithOwnerName("TestSortKeyClientBasicFlow#2"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
 	if err != nil {
@@ -126,7 +137,7 @@ func TestSortKeyClientBasicFlow(t *testing.T) {
 		t.Fatal("expected to fail to grab the lock")
 	}
 
-	_, _ = c.ReleaseLock(lockedItem, dynamolock.WithDeleteLock(true))
+	_, _ = c.ReleaseLock(lockedItem2, dynamolock.WithDeleteLock(true))
 
 	lockedItem3, err := c2.AcquireLock("spock",
 		dynamolock.WithData(data3),
@@ -147,17 +158,13 @@ func TestSortKeyReadLockContent(t *testing.T) {
 	t.Run("standard load", func(t *testing.T) {
 		t.Parallel()
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
-		c, err := dynamolock.New(svc,
+		c := dynamolock.New(svc,
 			sortKeyTable,
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#1"),
 			dynamolock.WithPartitionKeyName("key"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
 		defer c.Close()
 
 		t.Log("ensuring table exists")
@@ -177,17 +184,12 @@ func TestSortKeyReadLockContent(t *testing.T) {
 			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 		}
 
-		c2, err := dynamolock.New(svc,
+		c2 := dynamolock.New(svc,
 			sortKeyTable,
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContent#2"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		lockItemRead, err := c2.Get("mccoy")
 		if err != nil {
 			t.Fatal(err)
@@ -202,17 +204,13 @@ func TestSortKeyReadLockContent(t *testing.T) {
 	t.Run("cached load", func(t *testing.T) {
 		t.Parallel()
 		svc := dynamodb.NewFromConfig(defaultConfig(t))
-		c, err := dynamolock.New(svc,
+		c := dynamolock.New(svc,
 			sortKeyTable,
 			dynamolock.WithLeaseDuration(3*time.Second),
-			dynamolock.WithHeartbeatPeriod(1*time.Second),
 			dynamolock.WithOwnerName("TestReadLockContentCachedLoad#1"),
 			dynamolock.WithPartitionKeyName("key"),
 			dynamolock.WithSortKey("sortkey", "sortvalue"),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
 		defer c.Close()
 
 		t.Log("ensuring table exists")
@@ -239,17 +237,13 @@ func TestSortKeyReadLockContent(t *testing.T) {
 func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer c.Close()
 
 	t.Log("ensuring table exists")
@@ -270,16 +264,12 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestReadLockContentAfterRelease#2"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	lockItemRead, err := c2.Get("scotty")
 	if err != nil {
@@ -296,17 +286,13 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestSortKeyReadLockContentAfterDeleteOnRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer c.Close()
 
 	t.Log("ensuring table exists")
@@ -328,16 +314,12 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	}
 	lockedItem.Close()
 
-	c2, err := dynamolock.New(svc,
+	c2 := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestSortKeyReadLockContentAfterDeleteOnRelease#2"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	lockItemRead, err := c2.Get("uhura")
 	if err != nil {
@@ -351,39 +333,21 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	}
 }
 
-func TestSortKeyInvalidLeaseHeartbeatRation(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	_, err := dynamolock.New(svc,
-		sortKeyTable,
-		dynamolock.WithLeaseDuration(1*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithSortKey("sortkey", "sortvalue"),
-	)
-	if err == nil {
-		t.Fatal("expected error not found")
-	}
-}
-
 func TestSortKeyFailIfLocked(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("FailIfLocked#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
 
-	_, err = c.AcquireLock("failIfLocked")
+	_, err := c.AcquireLock("failIfLocked")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,17 +361,13 @@ func TestSortKeyFailIfLocked(t *testing.T) {
 func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestClientWithAdditionalAttributes#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -474,17 +434,13 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestDeleteLockOnRelease#1"),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -521,18 +477,14 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestCustomRefreshPeriod#1"),
 		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -552,18 +504,14 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestCustomAdditionalTimeToWaitForLock#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -575,7 +523,7 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 	}
 	go func() {
 		for i := 0; i < 3; i++ {
-			_ = c.SendHeartbeat(l)
+			_ = c.SendHeartbeat(context.TODO(), l)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -592,18 +540,14 @@ func TestSortKeyCustomAdditionalTimeToWaitForLock(t *testing.T) {
 func TestSortKeyClientClose(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientClose#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal("cannot create the client:", err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -632,7 +576,7 @@ func TestSortKeyClientClose(t *testing.T) {
 		t.Error("expected error missing (close after close):", err)
 	}
 	t.Log("heartbeat after close")
-	if err := c.SendHeartbeat(lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
+	if err := c.SendHeartbeat(context.TODO(), lockItem1); !errors.Is(err, dynamolock.ErrClientClosed) {
 		t.Error("expected error missing (heartbeat after close):", err)
 	}
 	t.Log("release after close")
@@ -656,18 +600,14 @@ func TestSortKeyClientClose(t *testing.T) {
 func TestSortKeyInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
 		dynamolock.WithLogger(&testLogger{t: t}),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -722,18 +662,14 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 	t.Cleanup(func() {
 		t.Log(logger.String())
 	})
-	c, err := dynamolock.New(svc,
+	c := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
 		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -757,118 +693,5 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 
 	if !bytes.Equal(relockedItem.Data(), data) {
 		t.Fatal("missing expected data after the release")
-	}
-}
-
-func TestSortKeyHeartbeatLoss(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	heartbeatPeriod := 5 * time.Second
-	c, err := dynamolock.New(svc,
-		sortKeyTable,
-		dynamolock.WithLeaseDuration(1*time.Hour),
-		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
-		dynamolock.WithOwnerName("TestHeartbeatLoss#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
-		dynamolock.WithPartitionKeyName("key"),
-		dynamolock.WithSortKey("sortkey", "sortvalue"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("ensuring table exists")
-	_, _ = createSortKeyTable(t, c)
-
-	const lockName = "heartbeatLoss"
-
-	lockItem1, err := c.AcquireLock(lockName + "1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(heartbeatPeriod)
-	if _, err := c.ReleaseLock(lockItem1); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(heartbeatPeriod)
-
-	lockItem2, err := c.AcquireLock(lockName + "2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer lockItem2.Close()
-
-	rvn1 := lockItem2.RVN()
-	time.Sleep(heartbeatPeriod + 1*time.Second)
-	rvn2 := lockItem2.RVN()
-
-	t.Log("RVNs", rvn1, rvn2)
-	if rvn1 == rvn2 {
-		t.Fatal("is the heartbeat running?")
-	}
-}
-
-func TestSortKeyHeartbeatError(t *testing.T) {
-	t.Parallel()
-	svc := dynamodb.NewFromConfig(defaultConfig(t))
-
-	var buf lockStepBuffer
-	fatal := func(a ...any) {
-		t.Log(buf.String())
-		t.Fatal(a...)
-	}
-	defer func() {
-		t.Log(buf.String())
-	}()
-	logger := log.New(&buf, "", 0)
-
-	heartbeatPeriod := 2 * time.Second
-	c, err := dynamolock.New(svc,
-		"locksSkHBError",
-		dynamolock.WithLeaseDuration(1*time.Hour),
-		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
-		dynamolock.WithOwnerName("TestHeartbeatError#1"),
-		dynamolock.WithLogger(logger),
-		dynamolock.WithPartitionKeyName("key"),
-		dynamolock.WithSortKey("sortkey", "sortvalue"),
-	)
-	if err != nil {
-		fatal(err)
-	}
-
-	t.Log("ensuring table exists")
-	_, err = c.CreateTable("locksSkHBError",
-		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
-		}),
-		dynamolock.WithCustomPartitionKeyName("key"),
-		dynamolock.WithSortKeyName("sortkey"),
-	)
-	if err != nil {
-		fatal("cannot create table", err)
-	}
-
-	const lockName = "heartbeatError"
-	if _, err := c.AcquireLock(lockName); err != nil {
-		fatal(err)
-	}
-	time.Sleep(2 * heartbeatPeriod)
-
-	_, err = svc.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{
-		TableName: aws.String("locksSkHBError"),
-	})
-	if err != nil {
-		fatal(fmt.Sprintf("could not delete table: %v", err))
-	}
-
-	time.Sleep(heartbeatPeriod)
-
-	c.Close()
-
-	time.Sleep(heartbeatPeriod)
-
-	if !strings.Contains(buf.String(), "error sending heartbeat to heartbeatError") {
-		fatal("cannot prove that heartbeat failed after the table has been deleted")
 	}
 }

@@ -48,15 +48,11 @@ func TestCloseRace(t *testing.T) {
 		},
 	}
 	// Most of the input into New isn't relevant since we're mocking
-	lockClient, err := New(mockSvc, "locksCloseRace",
+	lockClient := New(mockSvc, "locksCloseRace",
 		WithLeaseDuration(3*time.Second),
-		WithHeartbeatPeriod(100*time.Millisecond),
 		WithOwnerName("CloseRace"),
 		WithPartitionKeyName("key"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var wg sync.WaitGroup
 	n := 500

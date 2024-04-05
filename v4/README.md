@@ -1,4 +1,4 @@
-# DynamoDB Lock Client for Go v4
+## DynamoDB Lock Client for Go v4
 
 [![SLA](https://img.shields.io/badge/SLA-95%25-brightgreen.svg)](https://github.com/cirello-io/public/blob/master/SLA.md)
 [![Build status](https://github.com/cirello-io/dynamolock/actions/workflows/go.yml/badge.svg)](https://github.com/cirello-io/dynamolock/actions/workflows/go.yml)
@@ -20,6 +20,8 @@ more basic primitives and it is up to the caller to weave everything together.
 Main differences:
 - There is no SessionMonitor anymore. It was a leaky abstraction that was always
 problematic.
+- Heartbeats are manual, and it is up to the caller to implement their own
+heartbeat policies.
 
 ## Use cases
 A common use case for this lock client is:
@@ -74,7 +76,6 @@ func main() {
 	c, err := dynamolock.New(dynamodb.NewFromConfig(cfg),
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -118,7 +119,6 @@ func main() {
 	c, err := dynamolock.New(dynamodb.NewFromConfig(cfg),
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
-		dynamolock.WithHeartbeatPeriod(1*time.Second),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -133,6 +133,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// here you can periodically call if you need a long lived lock:
+	// err := c.SendHeartbeat(ctx, lockedItem)
 
 	log.Println("lock content:", string(lockedItem.Data()))
 	if got := string(lockedItem.Data()); string(data) != got {
@@ -152,13 +155,6 @@ func main() {
 ```
 
 ## Selected Features
-### Send Automatic Heartbeats
-When you create the lock client, you can specify `WithHeartbeatPeriod(time.Duration)`
-like in the above example, and it will spawn a background goroutine that
-continually updates the record version number on your locks to prevent them from
-expiring (it does this by calling the `SendHeartbeat()` method in the lock
-client.) This will ensure that as long as your application is running, your
-locks will not expire until you call `ReleaseLock()` or `lockItem.Close()`
 
 ### Read the data in a lock without acquiring it
 You can read the data in the lock without acquiring it, and find out who owns
