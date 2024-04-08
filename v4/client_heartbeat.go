@@ -115,5 +115,10 @@ func (c *Client) SendHeartbeat(ctx context.Context, lockItem *Lock, opts ...Send
 	}
 
 	lockItem.updateRVN(targetRecordVersionNumber, lastUpdateOfLock, leaseDuration)
+	if sho.deleteData {
+		lockItem.data = nil
+	} else if len(sho.data) > 0 {
+		lockItem.data = sho.data
+	}
 	return nil
 }

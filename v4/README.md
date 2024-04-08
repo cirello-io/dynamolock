@@ -20,7 +20,8 @@ Main differences:
 - There is no SessionMonitor anymore. It was a leaky abstraction that was always
 problematic.
 - Heartbeats are manual, and it is up to the caller to implement their own
-heartbeat policies.
+heartbeat policies. A helper method was added to help transition from
+dynamolock/v2.
 
 ## Use cases
 A common use case for this lock client is:
