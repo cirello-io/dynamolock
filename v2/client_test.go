@@ -74,8 +74,8 @@ func defaultConfig(t *testing.T) aws.Config {
 	t.Helper()
 	return aws.Config{
 		Region: "us-west-2",
-		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{URL: "http://localhost:8000/"}, nil
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) { //nolint:staticcheck
+			return aws.Endpoint{URL: "http://localhost:8000/"}, nil //nolint:staticcheck
 		}),
 		Credentials: credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
@@ -124,8 +124,8 @@ func proxyConfig(t *testing.T) (aws.Config, func()) {
 	}()
 	return aws.Config{
 		Region: "us-west-2",
-		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{URL: "http://" + l.Addr().String() + "/"}, nil
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) { //nolint:staticcheck
+			return aws.Endpoint{URL: "http://" + l.Addr().String() + "/"}, nil //nolint:staticcheck
 		}),
 		Credentials: credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
