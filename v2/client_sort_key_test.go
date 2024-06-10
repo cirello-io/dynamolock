@@ -651,18 +651,22 @@ func TestSortKeyClientClose(t *testing.T) {
 func TestSortKeyInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	logger := &bufferedContextLogger{}
 	c, err := dynamolock.New(svc,
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		t.Log(logger.String())
+	})
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
