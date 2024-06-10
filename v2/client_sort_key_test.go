@@ -657,7 +657,7 @@ func TestSortKeyInvalidReleases(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
-		dynamolock.WithLogger(logger),
+		dynamolock.WithContextLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
 	)
