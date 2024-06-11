@@ -721,7 +721,7 @@ func TestSortKeyClientWithDataAfterRelease(t *testing.T) {
 		sortKeyTable,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
-		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
+		dynamolock.WithOwnerName("TestSortKeyClientWithDataAfterRelease#1"),
 		dynamolock.WithLogger(logger),
 		dynamolock.WithPartitionKeyName("key"),
 		dynamolock.WithSortKey("sortkey", "sortvalue"),
