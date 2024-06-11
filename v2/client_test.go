@@ -681,7 +681,7 @@ func TestCustomAdditionalTimeToWaitForLock(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.DisableHeartbeat(),
 		dynamolock.WithOwnerName("TestCustomAdditionalTimeToWaitForLock#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(newBufferedLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
@@ -726,7 +726,7 @@ func TestClientClose(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientClose#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(newBufferedLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
@@ -896,15 +896,6 @@ func TestClientWithDataAfterRelease(t *testing.T) {
 	}
 }
 
-type testLogger struct {
-	t *testing.T
-}
-
-func (t *testLogger) Println(v ...interface{}) {
-	t.t.Helper()
-	t.t.Log(v...)
-}
-
 func TestHeartbeatLoss(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
@@ -914,7 +905,7 @@ func TestHeartbeatLoss(t *testing.T) {
 		dynamolock.WithLeaseDuration(1*time.Hour),
 		dynamolock.WithHeartbeatPeriod(heartbeatPeriod),
 		dynamolock.WithOwnerName("TestHeartbeatLoss#1"),
-		dynamolock.WithLogger(&testLogger{t: t}),
+		dynamolock.WithLogger(newBufferedLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
