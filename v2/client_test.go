@@ -905,15 +905,6 @@ func (t *testLogger) Println(v ...interface{}) {
 	t.t.Log(v...)
 }
 
-type testContextLogger struct {
-	t *testing.T
-}
-
-func (t *testContextLogger) Println(_ context.Context, v ...interface{}) {
-	t.t.Helper()
-	t.t.Log(v...)
-}
-
 func TestHeartbeatLoss(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
@@ -1101,7 +1092,7 @@ func TestAcquireLockOnCloseClient(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestAcquireLockOnCloseClient#1"),
-		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithContextLogger(newBufferedContextLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
@@ -1122,7 +1113,7 @@ func TestAcquireLockOnCanceledContext(t *testing.T) {
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestAcquireLockOnCanceledContext#1"),
-		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithContextLogger(newBufferedContextLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
@@ -1144,7 +1135,7 @@ func TestTableTags(t *testing.T) {
 	c, err := dynamolock.New(svc,
 		"locksWithTags",
 		dynamolock.WithOwnerName("TestTableTags#1"),
-		dynamolock.WithContextLogger(&testContextLogger{t: t}),
+		dynamolock.WithContextLogger(newBufferedContextLogger(t)),
 	)
 	if err != nil {
 		t.Fatal(err)
