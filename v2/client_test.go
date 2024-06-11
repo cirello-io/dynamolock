@@ -140,21 +140,17 @@ func proxyConfig(t *testing.T) (aws.Config, func()) {
 func TestClientBasicFlow(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	logger := &bufferedContextLogger{}
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientBasicFlow#1"),
-		dynamolock.WithContextLogger(logger),
+		dynamolock.WithContextLogger(newBufferedContextLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		t.Log(logger.String())
-	})
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -794,21 +790,17 @@ func TestClientClose(t *testing.T) {
 func TestInvalidReleases(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	logger := &bufferedLogger{}
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestInvalidReleases#1"),
-		dynamolock.WithLogger(logger),
+		dynamolock.WithLogger(newBufferedLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		t.Log(logger.String())
-	})
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -861,21 +853,17 @@ func TestInvalidReleases(t *testing.T) {
 func TestClientWithDataAfterRelease(t *testing.T) {
 	t.Parallel()
 	svc := dynamodb.NewFromConfig(defaultConfig(t))
-	logger := &bufferedLogger{}
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
 		dynamolock.WithOwnerName("TestClientWithDataAfterRelease#1"),
-		dynamolock.WithLogger(logger),
+		dynamolock.WithLogger(newBufferedLogger(t)),
 		dynamolock.WithPartitionKeyName("key"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		t.Log(logger.String())
-	})
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",

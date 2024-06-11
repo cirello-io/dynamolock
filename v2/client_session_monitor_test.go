@@ -216,14 +216,13 @@ func TestSessionMonitorMissedCall(t *testing.T) {
 			t.Log("lockName:", lockName)
 			cfg, proxyCloser := proxyConfig(t)
 			svc := dynamodb.NewFromConfig(cfg)
-			logger := &bufferedLogger{}
 			c, err := dynamolock.New(svc,
 				"locks",
 				dynamolock.WithLeaseDuration(tt.leaseDuration),
 				dynamolock.WithOwnerName("TestSessionMonitorMissedCall#1"),
 				dynamolock.WithHeartbeatPeriod(tt.heartbeatPeriod),
 				dynamolock.WithPartitionKeyName("key"),
-				dynamolock.WithLogger(logger),
+				dynamolock.WithLogger(newBufferedLogger(t)),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -263,10 +262,17 @@ func TestSessionMonitorMissedCall(t *testing.T) {
 				t.Log("session monitor was triggered")
 			}
 			t.Log("isExpired", lockedItem.IsExpired())
-
-			t.Log(logger.String())
 		})
 	}
+}
+
+func newBufferedLogger(tb testing.TB) *bufferedLogger {
+	tb.Helper()
+	bl := &bufferedLogger{}
+	tb.Cleanup(func() {
+		tb.Log(bl.String())
+	})
+	return bl
 }
 
 type bufferedLogger struct {
@@ -288,6 +294,15 @@ func (bl *bufferedLogger) Println(a ...any) {
 		bl.logger = log.New(&bl.buf, "", 0)
 	}
 	bl.logger.Println(a...)
+}
+
+func newBufferedContextLogger(tb testing.TB) *bufferedContextLogger {
+	tb.Helper()
+	bl := &bufferedContextLogger{}
+	tb.Cleanup(func() {
+		tb.Log(bl.String())
+	})
+	return bl
 }
 
 type bufferedContextLogger struct {
