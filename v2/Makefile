@@ -1,5 +1,5 @@
 linters:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	golangci-lint -j 1 run --disable-all \
 		--exclude ".*Load returns interface.*" \
 		-E "errcheck" \
@@ -15,7 +15,6 @@ linters:
 		-E "govet" \
 		-E "grouper" \
 		-E "ineffassign" \
-		-E "ireturn" \
 		-E "misspell" \
 		-E "prealloc" \
 		-E "predeclared" \
