@@ -3,7 +3,7 @@ module cirello.io/dynamolock/v2
 go 1.22
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.36.0
+	github.com/aws/aws-sdk-go-v2 v1.36.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.57
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.66
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.8
