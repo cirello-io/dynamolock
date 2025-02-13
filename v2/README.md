@@ -3,15 +3,15 @@
 [![Build status](https://github.com/cirello-io/dynamolock/actions/workflows/v2.yml/badge.svg)](https://github.com/cirello-io/dynamolock/actions/workflows/v2.yml)
 [![GoDoc](https://pkg.go.dev/badge/cirello.io/dynamolock)](https://pkg.go.dev/cirello.io/dynamolock/v2)
 
-This repository is covered by this [SLA](https://github.com/cirello-io/public/blob/master/SLA.md).
-
-The dymanoDB Lock Client for Go is a general purpose distributed locking library
+The dynamoDB Lock Client for Go is a general purpose distributed locking library
 built for DynamoDB. The dynamoDB Lock Client for Go supports both fine-grained
 and coarse-grained locking as the lock keys can be any arbitrary string, up to a
-certain length. Please create issues in the GitHub repository with questions,
-pull request are very much welcome.
+certain length.
 
 It is a port in Go of Amazon's original [dynamodb-lock-client](https://github.com/awslabs/dynamodb-lock-client) using the AWS's latest Go SDK.
+
+This library is done, and it is in maintenance mode. Updates and bug fixes will
+be made as necessary on a best effort basis, but no new features will be added.
 
 ## Use cases
 A common use case for this lock client is:
@@ -171,7 +171,7 @@ What this means is that, even if two different machines disagree about what time
 it is, they will still avoid clobbering each other's locks.
 
 ## Required DynamoDB Actions
-For an IAM role to take full advantage of `dynamolock/**v2`**, it must be allowed to
+For an IAM role to take full advantage of `dynamolock/v2`, it must be allowed to
 perform all of the following actions on the DynamoDB table containing the locks:
 
 * `GetItem`
