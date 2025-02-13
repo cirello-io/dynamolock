@@ -9,8 +9,6 @@ on:
     branches: [master]
     paths:
       - 'v2/**'
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   build:
