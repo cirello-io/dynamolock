@@ -6,11 +6,11 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.67
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.80
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.18.13 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.3 // indirect
