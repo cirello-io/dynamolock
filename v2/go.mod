@@ -4,8 +4,8 @@ go 1.23
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.40.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.21
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.20
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.0
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.25
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.1
 )
 
