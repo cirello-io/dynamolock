@@ -2,6 +2,8 @@ package dynamolock
 
 import (
 	"context"
+	"io"
+	"log"
 	"testing"
 	"time"
 )
@@ -12,7 +14,11 @@ import (
 func TestLockSessionMonitorChecker_ExpiredEarlyExit(t *testing.T) {
 	t.Parallel()
 
-	c := &Client{}
+	c := &Client{
+		logger: &contextLoggerAdapter{
+			logger: log.New(io.Discard, "", 0),
+		},
+	}
 
 	lock := &Lock{
 		sessionMonitor: &sessionMonitor{safeTime: 0, callback: func() {}},
@@ -29,7 +35,11 @@ func TestLockSessionMonitorChecker_ExpiredEarlyExit(t *testing.T) {
 func TestLockSessionMonitorChecker_ContextCanceled(t *testing.T) {
 	t.Parallel()
 
-	c := &Client{}
+	c := &Client{
+		logger: &contextLoggerAdapter{
+			logger: log.New(io.Discard, "", 0),
+		},
+	}
 
 	lock := &Lock{
 		sessionMonitor: &sessionMonitor{safeTime: 10 * time.Second, callback: func() {}},
