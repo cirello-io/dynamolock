@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.40.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.1
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.8.25
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.1
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.2
 )
 
 require (
