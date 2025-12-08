@@ -16,7 +16,7 @@ github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.32.6 h1:m8Odxvyy7nirivpi
 github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.32.6/go.mod h1:r2DJVcbGPv7oJGoPICCQJ+4ci5oSGjdXtdscnJIQBfk=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.3 h1:x2Ibm/Af8Fi+BH+Hsn9TXGdT+hKbDd5XOTZxTMxDk7o=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.3/go.mod h1:IW1jwyrQgMdhisceG8fQLmQIydcT/jWY21rFhzgaKwo=
-github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.14 h1:3exo28cClRTVnxdj/LULxkESZSSv74RUIjZ7tfHXfWQ=
-github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.14/go.mod h1:yLon9pByjyB6JZq5IAmwnjE3ObIhD0QibfRWH7tUhLU=
+github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.15 h1:eqFpfK7yQOFLlL7Pi6nRcNmw10GWHpz/6eVqmXfyJpg=
+github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.15/go.mod h1:kePbIvbXUXhddSN7CQ4OW8l9mpI611/4iqDdhF6UNkw=
 github.com/aws/smithy-go v1.24.0 h1:LpilSUItNPFr1eY85RYgTIg5eIEPtvFbskaFcmmIUnk=
 github.com/aws/smithy-go v1.24.0/go.mod h1:LEj2LM3rBRQJxPZTB4KuzZkaZYnZPnvgIhb4pu07mx0=
