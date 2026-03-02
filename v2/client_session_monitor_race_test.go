@@ -1,5 +1,4 @@
 //go:build race
-// +build race
 
 /*
 Copyright 2023 U. Cirello (cirello.io and github.com/cirello-io)

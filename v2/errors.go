@@ -63,8 +63,7 @@ func (e *LockNotGrantedError) Unwrap() error {
 }
 
 func parseDynamoDBError(err error, msg string) error {
-	var conditionalCheckFailedException *types.ConditionalCheckFailedException
-	if errors.As(err, &conditionalCheckFailedException) {
+	if conditionalCheckFailedException, ok := errors.AsType[*types.ConditionalCheckFailedException](err); ok {
 		return &LockNotGrantedError{
 			msg:   msg,
 			cause: conditionalCheckFailedException,

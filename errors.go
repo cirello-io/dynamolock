@@ -55,12 +55,12 @@ func (e *LockNotGrantedError) Unwrap() error {
 }
 
 func parseDynamoDBError(err error, msg string) error {
-	if aerr, ok := err.(awserr.Error); ok {
-		switch aerr.Code() {
+	if errAWS, ok := err.(awserr.Error); ok {
+		switch errAWS.Code() {
 		case dynamodb.ErrCodeConditionalCheckFailedException:
 			return &LockNotGrantedError{
 				msg:   msg,
-				cause: aerr,
+				cause: errAWS,
 			}
 		}
 	}

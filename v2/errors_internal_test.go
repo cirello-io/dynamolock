@@ -39,6 +39,7 @@ func TestLockNotGrantedError(t *testing.T) {
 		}
 	})
 	t.Run("not granted with cause", func(t *testing.T) {
+		t.Parallel()
 		const expectedAge = 5 * time.Minute
 		notGranted := &LockNotGrantedError{
 			msg:   "not granted with cause",
@@ -62,9 +63,8 @@ func TestParseDynamoDBError(t *testing.T) {
 	if err := parseDynamoDBError(vanilla, ""); !errors.Is(err, vanilla) {
 		t.Error("wrong error wrapping (vanilla):", err)
 	}
-	msg := "conditional check failed"
-	awserr := fmt.Errorf("envelope: %w", &types.ConditionalCheckFailedException{Message: &msg})
-	err := parseDynamoDBError(awserr, "")
+	errAWS := fmt.Errorf("envelope: %w", &types.ConditionalCheckFailedException{Message: new("conditional check failed")})
+	err := parseDynamoDBError(errAWS, "")
 	if !isLockNotGrantedError(err) {
 		t.Error("wrong error wrapping (awserr):", err)
 	}

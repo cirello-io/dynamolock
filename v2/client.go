@@ -24,15 +24,17 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"runtime"
 	"sync"
 	"time"
 
-	internalsync "cirello.io/dynamolock/v2/internal/sync"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	internalsync "cirello.io/dynamolock/v2/internal/sync"
 )
 
 const (
@@ -57,7 +59,7 @@ var isReleasedAttrVal = expression.Value("1")
 
 // Logger defines the minimum desired logger interface for the lock client.
 type Logger interface {
-	Println(v ...interface{})
+	Println(v ...any)
 }
 
 // ContextLogger defines a logger interface that can be used to pass extra information to the implementation.
@@ -65,15 +67,15 @@ type Logger interface {
 // can add those extra fields to the parent context of calls like AcquireLock, and then retrieve them in
 // your implementation of ContextLogger.
 type ContextLogger interface {
-	Println(ctx context.Context, v ...interface{})
+	Println(ctx context.Context, v ...any)
 }
 
 type contextLoggerAdapter struct {
 	logger Logger
 }
 
-func (cla *contextLoggerAdapter) Println(_ context.Context, v ...interface{}) {
-	cla.logger.Println(v)
+func (cla *contextLoggerAdapter) Println(_ context.Context, v ...any) {
+	cla.logger.Println(v...)
 }
 
 // Client is a dynamoDB based distributed lock client.
@@ -388,18 +390,12 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 	}
 
 	mergedAdditionalAttributes := make(map[string]types.AttributeValue)
-	for k, v := range existingLock.AdditionalAttributes() {
-		mergedAdditionalAttributes[k] = v
-	}
-	for k, v := range getLockOptions.additionalAttributes {
-		mergedAdditionalAttributes[k] = v
-	}
+	maps.Copy(mergedAdditionalAttributes, existingLock.AdditionalAttributes())
+	maps.Copy(mergedAdditionalAttributes, getLockOptions.additionalAttributes)
 	getLockOptions.additionalAttributes = mergedAdditionalAttributes
 
 	item := make(map[string]types.AttributeValue)
-	for k, v := range getLockOptions.additionalAttributes {
-		item[k] = v
-	}
+	maps.Copy(item, getLockOptions.additionalAttributes)
 	item[c.partitionKeyName] = stringAttrValue(getLockOptions.partitionKeyName)
 	if c.sortKeyName != "" {
 		item[c.sortKeyName] = stringAttrValue(c.sortKeyValue)
@@ -416,7 +412,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 
 	// if the existing lock does not exist or exists and is released
 	if existingLock == nil || existingLock.isReleased {
-		l, err := c.upsertAndMonitorNewOrReleasedLock(
+		l, errUpsert := c.upsertAndMonitorNewOrReleasedLock(
 			ctx,
 			getLockOptions.additionalAttributes,
 			getLockOptions.partitionKeyName,
@@ -425,10 +421,10 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			item,
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
-		if err != nil && errors.As(err, new(*LockNotGrantedError)) {
+		if errUpsert != nil && errors.As(errUpsert, new(*LockNotGrantedError)) {
 			return nil, nil
 		}
-		return l, err
+		return l, errUpsert
 	}
 
 	// we know that we didnt enter the if block above because it returns at the end.
@@ -445,7 +441,9 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 
 		// If the user has set `FailIfLocked` option, exit after the first attempt to acquire the lock.
 		if getLockOptions.failIfLocked {
-			return nil, &LockNotGrantedError{msg: "Didn't acquire lock because it is locked and request is configured not to retry."}
+			return nil, &LockNotGrantedError{
+				msg: "Didn't acquire lock because it is locked and request is configured not to retry.",
+			}
 		}
 
 		getLockOptions.lockTryingToBeAcquired = existingLock
@@ -455,7 +453,7 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 		}
 	case getLockOptions.lockTryingToBeAcquired.recordVersionNumber == existingLock.recordVersionNumber && getLockOptions.lockTryingToBeAcquired.isExpired():
 		/* If the version numbers match, then we can acquire the lock, assuming it has already expired */
-		l, err := c.upsertAndMonitorExpiredLock(
+		l, errUpsert := c.upsertAndMonitorExpiredLock(
 			ctx,
 			getLockOptions.additionalAttributes,
 			getLockOptions.partitionKeyName,
@@ -463,10 +461,10 @@ func (c *Client) storeLock(ctx context.Context, getLockOptions *getLockOptions) 
 			existingLock, newLockData, item,
 			recordVersionNumber,
 			getLockOptions.sessionMonitor)
-		if err != nil && errors.As(err, new(*LockNotGrantedError)) {
+		if errUpsert != nil && errors.As(errUpsert, new(*LockNotGrantedError)) {
 			return nil, nil
 		}
-		return l, err
+		return l, errUpsert
 	case getLockOptions.lockTryingToBeAcquired.recordVersionNumber != existingLock.recordVersionNumber:
 		/*
 		 * If the version number changed since we last queried the lock, then we need to update
@@ -560,8 +558,8 @@ func (c *Client) putLockItemAndStartSessionMonitor(
 	newLockData []byte,
 	recordVersionNumber string,
 	sessionMonitor *sessionMonitor,
-	putItemRequest *dynamodb.PutItemInput) (*Lock, error) {
-
+	putItemRequest *dynamodb.PutItemInput,
+) (*Lock, error) {
 	lastUpdatedTime := time.Now()
 
 	_, err := c.dynamoDB.PutItem(ctx, putItemRequest)
@@ -680,6 +678,7 @@ func randString() string {
 	}
 	return base32Encoder.EncodeToString(randomBytes)
 }
+
 func (c *Client) heartbeat(rootCtx context.Context) {
 	c.logger.Println(rootCtx, "heartbeats starting")
 	defer c.logger.Println(rootCtx, "heartbeats done")
@@ -699,14 +698,12 @@ func (c *Client) heartbeat(rootCtx context.Context) {
 			lockItems = make(chan *Lock, maxProcs)
 		)
 		c.logger.Println(rootCtx, "heartbeat concurrency level:", maxProcs)
-		for i := 0; i < maxProcs; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range maxProcs {
+			wg.Go(func() {
 				for lockItem := range lockItems {
 					c.heartbeatLock(rootCtx, lockItem)
 				}
-			}()
+			})
 		}
 		c.locks.Range(func(_ string, lockItem *Lock) bool {
 			lockItems <- lockItem
@@ -722,7 +719,8 @@ func (c *Client) heartbeat(rootCtx context.Context) {
 func (c *Client) heartbeatLock(rootCtx context.Context, lockItem *Lock) {
 	ctx, cancel := context.WithTimeout(rootCtx, c.heartbeatPeriod)
 	defer cancel()
-	if err := c.SendHeartbeatWithContext(ctx, lockItem); err != nil {
+	err := c.SendHeartbeatWithContext(ctx, lockItem)
+	if err != nil {
 		c.logger.Println(ctx, "error sending heartbeat to", lockItem.partitionKey, ":", err)
 	}
 }
@@ -732,7 +730,11 @@ func (c *Client) heartbeatLock(rootCtx context.Context, lockItem *Lock) {
 // because it takes a few minutes for DynamoDB to provision a new instance.
 // Also, if the table already exists, it will return an error. The given context
 // is passed down to the underlying dynamoDB call.
-func (c *Client) CreateTableWithContext(ctx context.Context, tableName string, opts ...CreateTableOption) (*dynamodb.CreateTableOutput, error) {
+func (c *Client) CreateTableWithContext(
+	ctx context.Context,
+	tableName string,
+	opts ...CreateTableOption,
+) (*dynamodb.CreateTableOutput, error) {
 	if c.isClosed() {
 		return nil, ErrClientClosed
 	}
@@ -785,7 +787,10 @@ func WithProvisionedThroughput(provisionedThroughput *types.ProvisionedThroughpu
 	}
 }
 
-func (c *Client) createTable(ctx context.Context, opt *createDynamoDBTableOptions) (*dynamodb.CreateTableOutput, error) {
+func (c *Client) createTable(
+	ctx context.Context,
+	opt *createDynamoDBTableOptions,
+) (*dynamodb.CreateTableOutput, error) {
 	keySchema := []types.KeySchemaElement{
 		{
 			AttributeName: aws.String(opt.partitionKeyName),
@@ -869,7 +874,10 @@ func ownershipLockCondition(partitionKeyName, recordVersionNumber, ownerName str
 	return unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName, false)
 }
 
-func unsafeOwnershipLockCondition(partitionKeyName, recordVersionNumber, ownerName string, unsafeMatchOwnerOnly bool) expression.ConditionBuilder {
+func unsafeOwnershipLockCondition(
+	partitionKeyName, recordVersionNumber, ownerName string,
+	unsafeMatchOwnerOnly bool,
+) expression.ConditionBuilder {
 	var partitionExpr expression.ConditionBuilder
 	switch unsafeMatchOwnerOnly {
 	case true:
@@ -931,7 +939,11 @@ func (c *Client) releaseLock(ctx context.Context, lockItem *Lock, opts ...Releas
 	return nil
 }
 
-func (c *Client) deleteLock(ctx context.Context, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
+func (c *Client) deleteLock(
+	ctx context.Context,
+	ownershipLockCond expression.ConditionBuilder,
+	key map[string]types.AttributeValue,
+) error {
 	delExpr, _ := expression.NewBuilder().WithCondition(ownershipLockCond).Build()
 	deleteItemRequest := &dynamodb.DeleteItemInput{
 		TableName:                 aws.String(c.tableName),
@@ -947,7 +959,12 @@ func (c *Client) deleteLock(ctx context.Context, ownershipLockCond expression.Co
 	return nil
 }
 
-func (c *Client) updateLock(ctx context.Context, data []byte, ownershipLockCond expression.ConditionBuilder, key map[string]types.AttributeValue) error {
+func (c *Client) updateLock(
+	ctx context.Context,
+	data []byte,
+	ownershipLockCond expression.ConditionBuilder,
+	key map[string]types.AttributeValue,
+) error {
 	update := expression.Set(isReleasedAttr, isReleasedAttrVal)
 	if len(data) > 0 {
 		update = update.Set(dataAttr, expression.Value(data))
@@ -1077,7 +1094,15 @@ func (c *Client) lockSessionMonitorChecker(ctx context.Context, monitorName stri
 				c.logger.Println(ctx, "lock expired", timeUntilDangerZone)
 				return
 			}
-			c.logger.Println(ctx, "lockSessionMonitorChecker", "monitorName:", monitorName, "timeUntilDangerZone:", timeUntilDangerZone, time.Now().Add(timeUntilDangerZone))
+			c.logger.Println(
+				ctx,
+				"lockSessionMonitorChecker",
+				"monitorName:",
+				monitorName,
+				"timeUntilDangerZone:",
+				timeUntilDangerZone,
+				time.Now().Add(timeUntilDangerZone),
+			)
 			if timeUntilDangerZone <= 0 {
 				go lock.sessionMonitor.callback()
 				return
@@ -1117,11 +1142,31 @@ func readBytesAttr(attr types.AttributeValue) []byte {
 // DynamoDBClient defines the public interface that must be fulfilled for
 // testing doubles.
 type DynamoDBClient interface {
-	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
-	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
-	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
-	CreateTable(ctx context.Context, params *dynamodb.CreateTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.CreateTableOutput, error)
+	GetItem(
+		ctx context.Context,
+		params *dynamodb.GetItemInput,
+		optFns ...func(*dynamodb.Options),
+	) (*dynamodb.GetItemOutput, error)
+	PutItem(
+		ctx context.Context,
+		params *dynamodb.PutItemInput,
+		optFns ...func(*dynamodb.Options),
+	) (*dynamodb.PutItemOutput, error)
+	UpdateItem(
+		ctx context.Context,
+		params *dynamodb.UpdateItemInput,
+		optFns ...func(*dynamodb.Options),
+	) (*dynamodb.UpdateItemOutput, error)
+	DeleteItem(
+		ctx context.Context,
+		params *dynamodb.DeleteItemInput,
+		optFns ...func(*dynamodb.Options),
+	) (*dynamodb.DeleteItemOutput, error)
+	CreateTable(
+		ctx context.Context,
+		params *dynamodb.CreateTableInput,
+		optFns ...func(*dynamodb.Options),
+	) (*dynamodb.CreateTableOutput, error)
 }
 
 // Sugar functions

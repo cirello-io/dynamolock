@@ -26,10 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"cirello.io/dynamolock/v2"
 )
 
 func TestSessionMonitor(t *testing.T) {
@@ -176,10 +177,10 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Second)
-	if ok, err := lockedItem.IsAlmostExpired(); err == nil && !ok {
+	if ok, errAlmostExpired := lockedItem.IsAlmostExpired(); errAlmostExpired == nil && !ok {
 		t.Fatal("lock is not yet in the danger zone")
-	} else if err != nil {
-		t.Fatal("cannot assert whether the lock is almost expired:", err)
+	} else if errAlmostExpired != nil {
+		t.Fatal("cannot assert whether the lock is almost expired:", errAlmostExpired)
 	}
 
 	mu.Lock()
@@ -190,8 +191,11 @@ func TestSessionMonitorFullCycle(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Second)
-	if ok, err := lockedItem.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
-		t.Error("lockedItem should be already expired:", ok, err)
+	if ok, errAlmostExpired := lockedItem.IsAlmostExpired(); !errors.Is(
+		errAlmostExpired,
+		dynamolock.ErrLockAlreadyReleased,
+	) {
+		t.Error("lockedItem should be already expired:", ok, errAlmostExpired)
 	}
 }
 
@@ -208,7 +212,6 @@ func TestSessionMonitorMissedCall(t *testing.T) {
 		{20 * time.Second, 5 * time.Second},
 	}
 	for _, tt := range cases {
-		tt := tt
 		safeZone := tt.leaseDuration - (3 * tt.heartbeatPeriod)
 		t.Run(fmt.Sprintf("%s/%s/%s", tt.leaseDuration, tt.heartbeatPeriod, safeZone), func(t *testing.T) {
 			t.Parallel()
