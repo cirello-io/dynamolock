@@ -39,8 +39,8 @@ func TestMap(t *testing.T) {
 	})
 	{
 		m.Delete(key)
-		got, ok := m.Load(key)
-		if ok || got == value {
+		deletedValue, found := m.Load(key)
+		if found || deletedValue == value {
 			t.Fatal("should have failed to load key")
 		}
 	}

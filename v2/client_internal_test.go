@@ -18,7 +18,6 @@ package dynamolock
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -62,21 +61,17 @@ func TestCloseRace(t *testing.T) {
 	n := 500
 
 	// Create goroutines that acquire a lock
-	for i := 0; i < n; i++ {
+	for i := range n {
 		si := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _ = lockClient.AcquireLock(strconv.Itoa(si))
-		}()
+		})
 	}
 
 	// Close the lock client
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		lockClient.Close()
-	}()
+	})
 
 	// Check for any leaked locks
 	wg.Wait()
@@ -87,7 +82,7 @@ func TestCloseRace(t *testing.T) {
 	})
 
 	if length > 0 {
-		t.Fatal(fmt.Sprintf("lock client still has %d locks after Close()", length))
+		t.Fatalf("lock client still has %d locks after Close()", length)
 	}
 }
 

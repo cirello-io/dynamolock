@@ -29,7 +29,7 @@ local-dynamodb:
 	(cd local-dynamodb; unzip latest.zip)
 
 test: local-dynamodb
-	GOEXPERIMENT=loopvar go test -v
+	go test -v
 
 test-race:
-	GOEXPERIMENT=loopvar go test -race -count=1000
+	go test -race -count=1000

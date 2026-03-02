@@ -22,10 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"cirello.io/dynamolock/v2"
 )
 
 func TestIssue56(t *testing.T) {
@@ -59,25 +60,23 @@ func TestIssue56(t *testing.T) {
 		expectedCount             = 100
 	)
 
-	for i := 0; i < expectedCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range expectedCount {
+		wg.Go(func() {
 			for {
-				lock, err := lockClient.AcquireLock(
+				lock, errAcquire := lockClient.AcquireLock(
 					"key",
 					dynamolock.WithAdditionalTimeToWaitForLock(expectedTimeoutMinimumAge),
 					dynamolock.WithRefreshPeriod(100*time.Millisecond),
 				)
-				switch err {
+				switch errAcquire {
 				case nil:
 					count++
 					_, _ = lockClient.ReleaseLock(lock)
 					return
 				default:
 					var errTimeout *dynamolock.TimeoutError
-					if !errors.As(err, &errTimeout) {
-						t.Error("unexpected error:", err)
+					if !errors.As(errAcquire, &errTimeout) {
+						t.Error("unexpected error:", errAcquire)
 						return
 					}
 					if errTimeout.Age < expectedTimeoutMinimumAge {
@@ -86,7 +85,7 @@ func TestIssue56(t *testing.T) {
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

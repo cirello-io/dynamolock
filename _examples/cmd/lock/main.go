@@ -96,8 +96,8 @@ func createTable(client *dynamolock.Client, tableName string) error {
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
-		var awsErr awserr.RequestFailure
-		isTableAlreadyCreatedError := errors.As(err, &awsErr) && awsErr.StatusCode() == 400 && awsErr.Message() == "Cannot create preexisting table"
+		var errAWS awserr.RequestFailure
+		isTableAlreadyCreatedError := errors.As(err, &errAWS) && errAWS.StatusCode() == 400 && errAWS.Message() == "Cannot create preexisting table"
 		if !isTableAlreadyCreatedError {
 			return fmt.Errorf("cannot create dynamolock client table: %w", err)
 		}
@@ -130,14 +130,14 @@ func runCommand(ctx context.Context, lock *dynamolock.Lock, releaseOnError bool,
 	if err := wrappedCommand.Run(); err != nil {
 		if releaseOnError {
 			log.Println("errored, releasing lock")
-			if lockErr := lock.Close(); lockErr != nil {
-				log.Println("cannot release lock after failure:", lockErr)
+			if errLock := lock.Close(); errLock != nil {
+				log.Println("cannot release lock after failure:", errLock)
 			}
 		}
 		return fmt.Errorf("error: %w", err)
 	}
-	if lockErr := lock.Close(); lockErr != nil {
-		log.Println("cannot release lock after completion:", lockErr)
+	if errLock := lock.Close(); errLock != nil {
+		log.Println("cannot release lock after completion:", errLock)
 	}
 	return nil
 }

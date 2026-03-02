@@ -116,10 +116,13 @@ func (c *Client) SendHeartbeatWithContext(ctx context.Context, lockItem *Lock, o
 		return err
 	}
 	return nil
-
 }
 
-func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOptions, currentRecordVersionNumber, targetRecordVersionNumber string) error {
+func (c *Client) sendHeartbeat(
+	ctx context.Context,
+	options *sendHeartbeatOptions,
+	currentRecordVersionNumber, targetRecordVersionNumber string,
+) error {
 	leaseDuration := c.leaseDuration
 	lockItem := options.lockItem
 
@@ -127,7 +130,12 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 		return &LockNotGrantedError{msg: "cannot send heartbeat because lock is not granted"}
 	}
 
-	cond := unsafeOwnershipLockCondition(c.partitionKeyName, currentRecordVersionNumber, lockItem.ownerName, options.matchOwnerOnly)
+	cond := unsafeOwnershipLockCondition(
+		c.partitionKeyName,
+		currentRecordVersionNumber,
+		lockItem.ownerName,
+		options.matchOwnerOnly,
+	)
 	update := expression.
 		Set(leaseDurationAttr, expression.Value(leaseDuration.String())).
 		Set(rvnAttr, expression.Value(targetRecordVersionNumber))
@@ -159,16 +167,22 @@ func (c *Client) sendHeartbeat(ctx context.Context, options *sendHeartbeatOption
 	return nil
 }
 
-func (c *Client) retryHeartbeat(ctx context.Context, errHeartbeat error, sho *sendHeartbeatOptions, currentRecordVersionNumber, targetRecordVersionNumber string) error {
+func (c *Client) retryHeartbeat(
+	ctx context.Context,
+	errHeartbeat error,
+	sho *sendHeartbeatOptions,
+	currentRecordVersionNumber, targetRecordVersionNumber string,
+) error {
 	lockItem := sho.lockItem
 	rvn := currentRecordVersionNumber
-	for i := 0; i < sho.retries; i++ {
+	for i := range sho.retries {
 		c.logger.Println(ctx, "retrying heartbeat... attempt", i)
 		storedLock, err := c.getLockFromDynamoDB(ctx, getLockOptions{partitionKeyName: lockItem.uniqueIdentifier()})
 		if err != nil {
 			return fmt.Errorf("cannot load lock for heartbeat retry: %w", err)
 		}
-		lostLock := storedLock.recordVersionNumber != currentRecordVersionNumber && storedLock.recordVersionNumber != targetRecordVersionNumber
+		lostLock := storedLock.recordVersionNumber != currentRecordVersionNumber &&
+			storedLock.recordVersionNumber != targetRecordVersionNumber
 		if lostLock {
 			return &LockNotGrantedError{msg: "lock lost during heartbeat"}
 		}
