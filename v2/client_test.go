@@ -33,12 +33,11 @@ import (
 	"testing"
 	"time"
 
+	"cirello.io/dynamolock/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	"cirello.io/dynamolock/v2"
 )
 
 func TestMain(m *testing.M) {
@@ -70,7 +69,7 @@ func TestMain(m *testing.M) {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		conn.Close()
+		_ = conn.Close()
 		break
 	}
 	time.Sleep(1 * time.Second)
@@ -84,7 +83,7 @@ func defaultConfig(t *testing.T) aws.Config {
 	t.Helper()
 	return aws.Config{
 		Region: "us-west-2",
-		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc( //nolint:staticcheck
 			func(service, region string, options ...any) (aws.Endpoint, error) { //nolint:staticcheck
 				return aws.Endpoint{URL: "http://localhost:8000/"}, nil //nolint:staticcheck
 			},
@@ -107,12 +106,12 @@ func proxyConfig(t *testing.T) (aws.Config, func()) {
 	var (
 		outboundConns  sync.Map
 		proxyCloseOnce = sync.OnceFunc(func() {
-			l.Close()
+			_ = l.Close()
 			t.Log("proxy listener stopped")
 			outboundConns.Range(func(key, value any) bool {
 				t.Log("proxy connection closed", key)
 				conn := value.(net.Conn)
-				conn.Close()
+				_ = conn.Close()
 				return true
 			})
 			t.Log("proxy stopped")
@@ -136,7 +135,7 @@ func proxyConfig(t *testing.T) (aws.Config, func()) {
 	}()
 	return aws.Config{
 		Region: "us-west-2",
-		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc( //nolint:staticcheck
 			func(service, region string, options ...any) (aws.Endpoint, error) { //nolint:staticcheck
 				return aws.Endpoint{URL: "http://" + l.Addr().String() + "/"}, nil //nolint:staticcheck
 			},
@@ -261,7 +260,7 @@ func TestReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		t.Log("ensuring table exists")
 		_, _ = c.CreateTable("locks",
@@ -300,7 +299,7 @@ func TestReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c2.Close()
+		defer func() { _ = c2.Close() }()
 
 		t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 		if got := string(lockItemRead.Data()); string(data) != got {
@@ -320,7 +319,7 @@ func TestReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		t.Log("ensuring table exists")
 		_, _ = c.CreateTable("locks",
@@ -339,7 +338,7 @@ func TestReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer lockedItem.Close()
+		defer func() { _ = lockedItem.Close() }()
 
 		cachedItem, err := c.Get("janice")
 		if err != nil {
@@ -362,7 +361,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -386,7 +385,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
 		"locks",
@@ -402,7 +401,7 @@ func TestReadLockContentAfterRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); string(data) != got {
@@ -425,7 +424,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	t.Log("ensuring table exists")
 	_, _ = c.CreateTable("locks",
@@ -450,7 +449,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
 		"locks",
@@ -466,7 +465,7 @@ func TestReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); got != "" {
@@ -558,7 +557,7 @@ func TestClientWithAdditionalAttributes(t *testing.T) {
 		if v, ok := attrs["hello"]; !ok || v == nil || readStringAttr(v) != "world" {
 			t.Error("corrupted attribute set")
 		}
-		lockedItem.Close()
+		_ = lockedItem.Close()
 	})
 	t.Run("bad attributes", func(t *testing.T) {
 		_, errAcquire := c.AcquireLock(
@@ -640,7 +639,7 @@ func TestDeleteLockOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	releasedLock, err := c.Get(lockName)
 	if err != nil {
@@ -681,7 +680,7 @@ func TestCustomRefreshPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lockedItem.Close()
+	defer func() { _ = lockedItem.Close() }()
 
 	_, _ = c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
@@ -960,7 +959,7 @@ func TestHeartbeatLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lockItem2.Close()
+	defer func() { _ = lockItem2.Close() }()
 
 	rvn1 := lockItem2.RVN()
 	time.Sleep(heartbeatPeriod + 1*time.Second)
@@ -1026,7 +1025,7 @@ func TestHeartbeatError(t *testing.T) {
 
 	time.Sleep(heartbeatPeriod)
 
-	c.Close()
+	_ = c.Close()
 
 	time.Sleep(heartbeatPeriod)
 
@@ -1118,7 +1117,7 @@ func TestAcquireLockOnCloseClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Close()
+	_ = c.Close()
 
 	_, err = c.AcquireLock("closeClientLock")
 	if !errors.Is(err, dynamolock.ErrClientClosed) {

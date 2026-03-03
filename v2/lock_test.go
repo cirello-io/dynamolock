@@ -38,7 +38,7 @@ func TestNilLock(t *testing.T) {
 	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Fatal("nil locks should report error on testing for closing expiration")
 	}
-	l.Close()
+	_ = l.Close()
 }
 
 func TestEmptyLock(t *testing.T) {
@@ -56,5 +56,5 @@ func TestEmptyLock(t *testing.T) {
 	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrSessionMonitorNotSet) {
 		t.Fatalf("nil locks should report error on testing for closing expiration: %v", err)
 	}
-	l.Close()
+	_ = l.Close()
 }

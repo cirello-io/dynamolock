@@ -70,7 +70,7 @@ func TestCloseRace(t *testing.T) {
 
 	// Close the lock client
 	wg.Go(func() {
-		lockClient.Close()
+		_ = lockClient.Close()
 	})
 
 	// Check for any leaked locks

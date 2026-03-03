@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"cirello.io/dynamolock/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	"cirello.io/dynamolock/v2"
 )
 
 func TestSessionMonitor(t *testing.T) {
@@ -126,7 +125,7 @@ func TestSessionMonitorRemoveBeforeExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go lockedItem.Close()
+	go func() { _ = lockedItem.Close() }()
 
 	mu.Lock()
 	triggered := sessionMonitorWasTriggered

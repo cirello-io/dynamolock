@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"cirello.io/dynamolock/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	"cirello.io/dynamolock/v2"
 )
 
 const (
@@ -156,7 +155,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		t.Log("ensuring table exists")
 		_, _ = createSortKeyTable(t, c)
@@ -190,7 +189,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c2.Close()
+		defer func() { _ = c2.Close() }()
 
 		t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 		if got := string(lockItemRead.Data()); string(data) != got {
@@ -211,7 +210,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		t.Log("ensuring table exists")
 		_, _ = createSortKeyTable(t, c)
@@ -224,7 +223,7 @@ func TestSortKeyReadLockContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer lockedItem.Close()
+		defer func() { _ = lockedItem.Close() }()
 
 		cachedItem, err := c.Get("janice")
 		if err != nil {
@@ -248,7 +247,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -266,7 +265,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
 		sortKeyTable,
@@ -283,7 +282,7 @@ func TestSortKeyReadLockContentAfterRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); string(data) != got {
@@ -305,7 +304,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	t.Log("ensuring table exists")
 	_, _ = createSortKeyTable(t, c)
@@ -324,7 +323,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	c2, err := dynamolock.New(svc,
 		sortKeyTable,
@@ -341,7 +340,7 @@ func TestSortKeyReadLockContentAfterDeleteOnRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 
 	t.Log("reading someone else's lock:", string(lockItemRead.Data()))
 	if got := string(lockItemRead.Data()); got != "" {
@@ -424,7 +423,7 @@ func TestSortKeyClientWithAdditionalAttributes(t *testing.T) {
 		if v, ok := attrs["hello"]; !ok || v == nil || readStringAttr(v) != "world" {
 			t.Error("corrupted attribute set")
 		}
-		lockedItem.Close()
+		_ = lockedItem.Close()
 	})
 	t.Run("bad attributes", func(t *testing.T) {
 		_, errAcquire := c.AcquireLock(
@@ -501,7 +500,7 @@ func TestSortKeyDeleteLockOnRelease(t *testing.T) {
 	if got := string(lockedItem.Data()); string(data) != got {
 		t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 	}
-	lockedItem.Close()
+	_ = lockedItem.Close()
 
 	releasedLock, err := c.Get(lockName)
 	if err != nil {
@@ -537,7 +536,7 @@ func TestSortKeyCustomRefreshPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lockedItem.Close()
+	defer func() { _ = lockedItem.Close() }()
 
 	_, _ = c.AcquireLock("custom-refresh-period", dynamolock.WithRefreshPeriod(100*time.Millisecond))
 	if !strings.Contains(buf.String(), "Sleeping for a refresh period of  100ms") {
@@ -791,7 +790,7 @@ func TestSortKeyHeartbeatLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lockItem2.Close()
+	defer func() { _ = lockItem2.Close() }()
 
 	rvn1 := lockItem2.RVN()
 	time.Sleep(heartbeatPeriod + 1*time.Second)
@@ -859,7 +858,7 @@ func TestSortKeyHeartbeatError(t *testing.T) {
 
 	time.Sleep(heartbeatPeriod)
 
-	c.Close()
+	_ = c.Close()
 
 	time.Sleep(heartbeatPeriod)
 

@@ -29,12 +29,11 @@ import (
 	"sync"
 	"time"
 
+	internalsync "cirello.io/dynamolock/v2/internal/sync"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	internalsync "cirello.io/dynamolock/v2/internal/sync"
 )
 
 const (

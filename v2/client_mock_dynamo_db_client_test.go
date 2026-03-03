@@ -5,8 +5,9 @@ package dynamolock
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"sync"
+
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 // Ensure, that mockDynamoDBClient does implement DynamoDBClient.
