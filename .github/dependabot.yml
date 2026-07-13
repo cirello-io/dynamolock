@@ -6,4 +6,4 @@ updates:
       - dependency-type: "all"
       - dependency-type: "indirect"
     schedule:
-      interval: "weekly"
+      interval: "daily"
