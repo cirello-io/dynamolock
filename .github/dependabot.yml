@@ -4,6 +4,5 @@ updates:
     directory: "/v2"
     allow:
       - dependency-type: "all"
-      - dependency-type: "indirect"
     schedule:
       interval: "daily"
