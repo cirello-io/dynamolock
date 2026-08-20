@@ -15,50 +15,51 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
 	log.SetPrefix("lock: ")
 	log.SetFlags(0)
-	app := cli.NewApp()
-	app.HideVersion = true
-	app.Name = "lock"
-	app.Usage = "lock and execute given command"
-	app.Flags = []cli.Flag{
-		cli.BoolFlag{Name: "release-on-error,r"},
-		cli.BoolFlag{Name: "wait-for-lock,w"},
-		cli.StringFlag{
-			Name:  "table",
-			Value: "locks",
+	app := &cli.Command{
+		HideVersion: true,
+		Name:        "lock",
+		Usage:       "lock and execute given command",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "release-on-error", Aliases: []string{"r"}},
+			&cli.BoolFlag{Name: "wait-for-lock", Aliases: []string{"w"}},
+			&cli.StringFlag{
+				Name:  "table",
+				Value: "locks",
+			},
+		},
+		Action: func(ctx context.Context, c *cli.Command) error {
+			lockName := c.Args().First()
+			if lockName == "" {
+				return errors.New("missing lock name")
+			}
+			cmd := c.Args().Tail()
+			if len(cmd) == 0 {
+				return errors.New("missing command")
+			}
+			tableName := c.String("table")
+			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+			defer stop()
+			client, err := dialDynamoDB(ctx, tableName)
+			if err != nil {
+				return err
+			}
+			if err := createTable(ctx, client, tableName); err != nil {
+				return err
+			}
+			lock, err := grabLock(ctx, client, lockName, c.Bool("wait-for-lock"))
+			if err != nil {
+				return err
+			}
+			return runCommand(ctx, lock, c.Bool("release-on-error"), cmd)
 		},
 	}
-	app.Action = func(c *cli.Context) error {
-		lockName := c.Args().First()
-		if lockName == "" {
-			return errors.New("missing lock name")
-		}
-		cmd := c.Args().Tail()
-		if len(cmd) == 0 {
-			return errors.New("missing command")
-		}
-		tableName := c.String("table")
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-		client, err := dialDynamoDB(ctx, tableName)
-		if err != nil {
-			return err
-		}
-		if err := createTable(ctx, client, tableName); err != nil {
-			return err
-		}
-		lock, err := grabLock(ctx, client, lockName, c.Bool("wait-for-lock"))
-		if err != nil {
-			return err
-		}
-		return runCommand(ctx, lock, c.Bool("release-on-error"), cmd)
-	}
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
