@@ -1,0 +1,38 @@
+{
+  "skill_name": "with-dynamolock",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write the core of a Go worker that uses cirello.io/dynamolock/v5 to process one campaign at a time with DynamoDB. It should use AWS SDK v2, a 30-second lease, a 5-second heartbeat, bounded acquisition, and safe release.",
+      "expected_output": "The example uses the v5 module and AWS SDK v2 imports, configures a compatible lease/heartbeat pair, acquires with a context, and releases the owned lock while handling errors.",
+      "assertions": [
+        "The example imports cirello.io/dynamolock/v5",
+        "The example uses github.com/aws/aws-sdk-go-v2 configuration and DynamoDB client packages",
+        "Acquisition uses a bounded context or an explicit cancellation path",
+        "The acquired lock is released and release errors are not silently treated as success"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Design leader election with dynamolock. Explain how to configure heartbeats, detect a degraded lease, and what the service must do when the session monitor fires.",
+      "expected_output": "The design uses automatic heartbeats with a safe lease margin, registers a session monitor, and stops leadership/protected work when the callback fires or heartbeat ownership becomes uncertain.",
+      "assertions": [
+        "The design keeps heartbeat period at no more than half the lease",
+        "The design uses WithSessionMonitor with a safe time before expiration",
+        "The callback stops leadership or protected work rather than continuing",
+        "The design treats heartbeat failure as possible loss of ownership"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "A service should immediately report that a lock is busy and separately inspect who owns a lock. Show the dynamolock calls and error checks, including the important limitation of Get.",
+      "expected_output": "The answer uses FailIfLocked and errors.As for LockNotGrantedError, uses Get for observation, and explains that a lock returned by Get is read-only for heartbeat/release purposes.",
+      "assertions": [
+        "The immediate acquisition uses FailIfLocked",
+        "The busy result is checked with errors.As and LockNotGrantedError",
+        "The observation path uses Get without treating it as acquisition",
+        "The answer warns that a Get result cannot be used for heartbeat ownership"
+      ]
+    }
+  ]
+}
