@@ -2,11 +2,11 @@ name: Go
 
 on:
   push:
-    branches: [master]
+    branches: [v5]
     paths:
       - '**'
   pull_request:
-    branches: [master]
+    branches: [v5]
     paths:
       - '**'
 

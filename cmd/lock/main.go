@@ -1,3 +1,5 @@
+// Command lock is an example of how to use dynamolock/v5. It is a starting
+// point and not production ready.
 package main
 
 import (
@@ -91,8 +93,7 @@ func createTable(ctx context.Context, client *dynamolock.Client, tableName strin
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
-		var errResourceInUse *types.ResourceInUseException
-		if !errors.As(err, &errResourceInUse) {
+		if _, ok := errors.AsType[*types.ResourceInUseException](err); !ok {
 			return fmt.Errorf("cannot create dynamolock client table: %w", err)
 		}
 	}
