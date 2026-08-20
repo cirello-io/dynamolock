@@ -10,11 +10,11 @@ import (
 	"os/signal"
 	"time"
 
-	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"cirello.io/dynamolock/v5"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/urfave/cli"
 )
 
@@ -43,25 +43,19 @@ func main() {
 			return errors.New("missing command")
 		}
 		tableName := c.String("table")
-		client, err := dialDynamoDB(tableName)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		client, err := dialDynamoDB(ctx, tableName)
 		if err != nil {
 			return err
 		}
-		if err := createTable(client, tableName); err != nil {
+		if err := createTable(ctx, client, tableName); err != nil {
 			return err
 		}
-		lock, err := grabLock(client, lockName, c.Bool("wait-for-lock"))
+		lock, err := grabLock(ctx, client, lockName, c.Bool("wait-for-lock"))
 		if err != nil {
 			return err
 		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		trap := make(chan os.Signal, 1)
-		signal.Notify(trap, os.Interrupt)
-		go func() {
-			<-trap
-			cancel()
-		}()
 		return runCommand(ctx, lock, c.Bool("release-on-error"), cmd)
 	}
 	if err := app.Run(os.Args); err != nil {
@@ -69,13 +63,13 @@ func main() {
 	}
 }
 
-func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
-	session, err := session.NewSession()
+func dialDynamoDB(ctx context.Context, tableName string) (*dynamolock.Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create AWS session: %w", err)
+		return nil, fmt.Errorf("cannot load AWS configuration: %w", err)
 	}
 	client, err := dynamolock.New(
-		dynamodb.New(session),
+		dynamodb.NewFromConfig(cfg),
 		tableName,
 		dynamolock.WithLeaseDuration(3*time.Second),
 		dynamolock.WithHeartbeatPeriod(1*time.Second),
@@ -87,33 +81,33 @@ func dialDynamoDB(tableName string) (*dynamolock.Client, error) {
 	return client, nil
 }
 
-func createTable(client *dynamolock.Client, tableName string) error {
-	_, err := client.CreateTable(tableName,
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+func createTable(ctx context.Context, client *dynamolock.Client, tableName string) error {
+	_, err := client.CreateTable(ctx, tableName,
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
 	if err != nil {
-		var errAWS awserr.RequestFailure
-		isTableAlreadyCreatedError := errors.As(err, &errAWS) && errAWS.StatusCode() == 400 && errAWS.Message() == "Cannot create preexisting table"
-		if !isTableAlreadyCreatedError {
+		var errResourceInUse *types.ResourceInUseException
+		if !errors.As(err, &errResourceInUse) {
 			return fmt.Errorf("cannot create dynamolock client table: %w", err)
 		}
 	}
 	return nil
 }
 
-func grabLock(client *dynamolock.Client, lockName string, wait bool) (*dynamolock.Lock, error) {
+func grabLock(ctx context.Context, client *dynamolock.Client, lockName string, wait bool) (*dynamolock.Lock, error) {
 	for {
-		lock, err := client.AcquireLock(lockName, dynamolock.WithDeleteLockOnRelease())
-		if err != nil && wait {
-			continue
-		} else if err != nil {
+		lock, err := client.AcquireLock(ctx, lockName, dynamolock.WithDeleteLockOnRelease())
+		if err != nil {
+			if wait && ctx.Err() == nil {
+				continue
+			}
 			return nil, fmt.Errorf("cannot lock %s: %w", lockName, err)
 		}
-		return lock, err
+		return lock, nil
 	}
 }
 
@@ -130,13 +124,13 @@ func runCommand(ctx context.Context, lock *dynamolock.Lock, releaseOnError bool,
 	if err := wrappedCommand.Run(); err != nil {
 		if releaseOnError {
 			log.Println("errored, releasing lock")
-			if errLock := lock.Close(); errLock != nil {
+			if errLock := lock.Close(context.Background()); errLock != nil {
 				log.Println("cannot release lock after failure:", errLock)
 			}
 		}
 		return fmt.Errorf("error: %w", err)
 	}
-	if errLock := lock.Close(); errLock != nil {
+	if errLock := lock.Close(context.Background()); errLock != nil {
 		log.Println("cannot release lock after completion:", errLock)
 	}
 	return nil

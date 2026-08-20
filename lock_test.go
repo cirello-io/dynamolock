@@ -1,5 +1,5 @@
 /*
-Copyright 2019 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 
-	"cirello.io/dynamolock"
+	dynamolock "cirello.io/dynamolock/v5"
 )
 
 func TestNilLock(t *testing.T) {
@@ -34,10 +36,10 @@ func TestNilLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	if _, err := l.IsAlmostExpired(); err != dynamolock.ErrLockAlreadyReleased {
+	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrLockAlreadyReleased) {
 		t.Fatal("nil locks should report error on testing for closing expiration")
 	}
-	l.Close()
+	_ = l.Close(context.Background())
 }
 
 func TestEmptyLock(t *testing.T) {
@@ -52,8 +54,8 @@ func TestEmptyLock(t *testing.T) {
 	if l.OwnerName() != "" {
 		t.Fatal("nil locks should report no owner")
 	}
-	if _, err := l.IsAlmostExpired(); err != dynamolock.ErrSessionMonitorNotSet {
+	if _, err := l.IsAlmostExpired(); !errors.Is(err, dynamolock.ErrSessionMonitorNotSet) {
 		t.Fatalf("nil locks should report error on testing for closing expiration: %v", err)
 	}
-	l.Close()
+	_ = l.Close(context.Background())
 }

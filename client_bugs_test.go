@@ -1,5 +1,5 @@
 /*
-Copyright 2019 github.com/ucirello and cirello.io
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,23 +17,21 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	dynamolock "cirello.io/dynamolock/v5"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestIssue56(t *testing.T) {
-	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	lockClient, err := dynamolock.New(svc,
 		"locksIssue56",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -44,10 +42,10 @@ func TestIssue56(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = lockClient.CreateTable("locksIssue56",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
+	_, _ = lockClient.CreateTable(context.Background(), "locksIssue56",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(1000),
+			WriteCapacityUnits: aws.Int64(1000),
 		}),
 		dynamolock.WithCustomPartitionKeyName("key"),
 	)
@@ -62,25 +60,24 @@ func TestIssue56(t *testing.T) {
 		expectedCount             = 100
 	)
 
-	for i := 0; i < expectedCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range expectedCount {
+		wg.Go(func() {
 			for {
-				lock, err := lockClient.AcquireLock(
+				lock, errAcquire := lockClient.AcquireLock(
+					context.Background(),
 					"key",
 					dynamolock.WithAdditionalTimeToWaitForLock(expectedTimeoutMinimumAge),
 					dynamolock.WithRefreshPeriod(100*time.Millisecond),
 				)
-				switch err {
+				switch errAcquire {
 				case nil:
 					count++
-					_, _ = lockClient.ReleaseLock(lock)
+					_, _ = lockClient.ReleaseLock(context.Background(), lock)
 					return
 				default:
 					var errTimeout *dynamolock.TimeoutError
-					if !errors.As(err, &errTimeout) {
-						t.Error("unexpected error:", err)
+					if !errors.As(errAcquire, &errTimeout) {
+						t.Error("unexpected error:", errAcquire)
 						return
 					}
 					if errTimeout.Age < expectedTimeoutMinimumAge {
@@ -89,7 +86,7 @@ func TestIssue56(t *testing.T) {
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

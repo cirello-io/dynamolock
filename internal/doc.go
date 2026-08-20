@@ -1,5 +1,5 @@
 /*
-Copyright 2021 U. Cirello (cirello.io and github.com/cirello-io)
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,15 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dynamolock
-
-import "time"
-
-type sessionMonitor struct {
-	safeTime time.Duration
-	callback func()
-}
-
-func (s *sessionMonitor) timeUntilLeaseEntersDangerZone(lastAbsoluteTime time.Time) time.Duration {
-	return time.Until(lastAbsoluteTime.Add(s.safeTime))
-}
+// Package internal provides a boundary to prevent external packages from using
+// dynamolock's internal interfaces that are subject to change.
+package internal

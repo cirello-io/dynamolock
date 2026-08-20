@@ -1,5 +1,5 @@
 /*
-Copyright 2019 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,27 +18,26 @@ package dynamolock_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	dynamolock "cirello.io/dynamolock/v5"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestCancelationWithoutHearbeat(t *testing.T) {
-	isDynamoLockAvailable(t)
 	t.Parallel()
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatal("panic found when closing client without heartbeat")
 		}
 	}()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.DisableHeartbeat(),
@@ -46,16 +45,12 @@ func TestCancelationWithoutHearbeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Close()
+	_ = c.Close(context.Background())
 }
 
 func TestHeartbeatHandover(t *testing.T) {
-	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	c, err := dynamolock.New(svc,
 		"locks",
 		dynamolock.WithLeaseDuration(3*time.Second),
@@ -68,8 +63,8 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+	_, _ = c.CreateTable(context.Background(), "locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
@@ -77,7 +72,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	)
 
 	data := []byte("some content a")
-	lockedItem, err := c.AcquireLock("kirk",
+	lockedItem, err := c.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 	)
@@ -91,20 +86,20 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 1; i < 3; i++ {
-			if err := c.SendHeartbeat(lockedItem); err != nil {
-				t.Log("sendHeartbeat error:", err)
+			errHeartbeat := c.SendHeartbeat(context.Background(), lockedItem)
+			if errHeartbeat != nil {
+				t.Log("sendHeartbeat error:", errHeartbeat)
 			}
 			time.Sleep(2 * time.Second)
 		}
 		time.Sleep(1 * time.Second)
-		if err := c.SendHeartbeat(lockedItem); err == nil {
+		errHeartbeat := c.SendHeartbeat(context.Background(), lockedItem)
+		if errHeartbeat == nil {
 			t.Log("the heartbeat must fail after lock is lost")
 		}
-	}()
+	})
 
 	c2, err := dynamolock.New(svc,
 		"locks",
@@ -118,7 +113,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	data2 := []byte("some content b")
-	_, err = c2.AcquireLock("kirk",
+	_, err = c2.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data2),
 		dynamolock.ReplaceData(),
 	)
@@ -127,7 +122,7 @@ func TestHeartbeatHandover(t *testing.T) {
 	}
 
 	time.Sleep(6 * time.Second)
-	lockedItem2, err := c2.AcquireLock("kirk",
+	lockedItem2, err := c2.AcquireLock(context.Background(), "kirk",
 		dynamolock.WithData(data2),
 		dynamolock.ReplaceData(),
 	)
@@ -144,12 +139,8 @@ func TestHeartbeatHandover(t *testing.T) {
 }
 
 func TestHeartbeatDataOps(t *testing.T) {
-	isDynamoLockAvailable(t)
 	t.Parallel()
-	svc := dynamodb.New(mustAWSNewSession(t), &aws.Config{
-		Endpoint: aws.String("http://localhost:8000/"),
-		Region:   aws.String("us-west-2"),
-	})
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
 	newClient := func() (*dynamolock.Client, error) {
 		return dynamolock.New(svc,
 			"locks",
@@ -165,8 +156,8 @@ func TestHeartbeatDataOps(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	_, _ = c.CreateTable("locks",
-		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
+	_, _ = c.CreateTable(context.Background(), "locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
 		}),
@@ -176,9 +167,9 @@ func TestHeartbeatDataOps(t *testing.T) {
 	t.Run("delete data on heartbeat", func(t *testing.T) {
 		const lockName = "delete-data-on-heartbeat"
 		data := []byte("some content a")
-		lockedItem, err := c.AcquireLock(lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
-		if err != nil {
-			t.Fatal(err)
+		lockedItem, errAcquire := c.AcquireLock(context.Background(), lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
+		if errAcquire != nil {
+			t.Fatal(errAcquire)
 		}
 
 		t.Log("lock content:", string(lockedItem.Data()))
@@ -186,17 +177,18 @@ func TestHeartbeatDataOps(t *testing.T) {
 			t.Error("losing information inside lock storage, wanted:", string(data), " got:", got)
 		}
 
-		if err := c.SendHeartbeat(lockedItem, dynamolock.DeleteData()); err != nil {
-			t.Fatal("cannot send heartbeat: ", err)
+		errHeartbeat := c.SendHeartbeat(context.Background(), lockedItem, dynamolock.DeleteData())
+		if errHeartbeat != nil {
+			t.Fatal("cannot send heartbeat: ", errHeartbeat)
 		}
 
-		c2, err := newClient()
-		if err != nil {
+		c2, errClient := newClient()
+		if errClient != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		gotItem, err := c2.Get(lockName)
-		if err != nil {
-			t.Fatal("cannot lock: ", err)
+		gotItem, errGet := c2.Get(context.Background(), lockName)
+		if errGet != nil {
+			t.Fatal("cannot lock: ", errGet)
 		}
 
 		if len(gotItem.Data()) != 0 {
@@ -207,9 +199,9 @@ func TestHeartbeatDataOps(t *testing.T) {
 	t.Run("replace data on heartbeat", func(t *testing.T) {
 		const lockName = "replace-data-on-heartbeat"
 		data := []byte("some content a")
-		lockedItem, err := c.AcquireLock(lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
-		if err != nil {
-			t.Fatal(err)
+		lockedItem, errAcquire := c.AcquireLock(context.Background(), lockName, dynamolock.WithData(data), dynamolock.ReplaceData())
+		if errAcquire != nil {
+			t.Fatal(errAcquire)
 		}
 
 		t.Log("lock content:", string(lockedItem.Data()))
@@ -218,17 +210,18 @@ func TestHeartbeatDataOps(t *testing.T) {
 		}
 
 		replacedData := []byte("some content b")
-		if err := c.SendHeartbeat(lockedItem, dynamolock.ReplaceHeartbeatData(replacedData)); err != nil {
-			t.Fatal("cannot send heartbeat: ", err)
+		errHeartbeat := c.SendHeartbeat(context.Background(), lockedItem, dynamolock.ReplaceHeartbeatData(replacedData))
+		if errHeartbeat != nil {
+			t.Fatal("cannot send heartbeat: ", errHeartbeat)
 		}
 
-		c2, err := newClient()
-		if err != nil {
+		c2, errClient := newClient()
+		if errClient != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		gotItem, err := c2.Get(lockName)
-		if err != nil {
-			t.Fatal("cannot lock: ", err)
+		gotItem, errGet := c2.Get(context.Background(), lockName)
+		if errGet != nil {
+			t.Fatal("cannot lock: ", errGet)
 		}
 
 		if !bytes.Equal(gotItem.Data(), replacedData) {
@@ -237,31 +230,474 @@ func TestHeartbeatDataOps(t *testing.T) {
 	})
 
 	t.Run("racy heartbeats", func(t *testing.T) {
+		t.Parallel()
 		const lockName = "racy-heartbeats"
-		lockedItemAlpha, err := c.AcquireLock(lockName)
-		if err != nil {
-			t.Fatal(err)
+		lockedItemAlpha, errAcquire := c.AcquireLock(context.Background(), lockName)
+		if errAcquire != nil {
+			t.Fatal(errAcquire)
 		}
-		if err := c.SendHeartbeat(lockedItemAlpha); err != nil {
-			t.Fatal("cannot send heartbeat: ", err)
+		errHeartbeat := c.SendHeartbeat(context.Background(), lockedItemAlpha)
+		if errHeartbeat != nil {
+			t.Fatal("cannot send heartbeat: ", errHeartbeat)
 		}
 
-		c2, err := newClient()
-		if err != nil {
+		c2, errClient := newClient()
+		if errClient != nil {
 			t.Fatal("cannot open second lock client")
 		}
-		lockedItemBeta, err := c2.AcquireLock(lockName, dynamolock.WithAdditionalTimeToWaitForLock(2*time.Second))
+		lockedItemBeta, errBeta := c2.AcquireLock(context.Background(), lockName, dynamolock.WithAdditionalTimeToWaitForLock(2*time.Second))
+		if errBeta != nil {
+			t.Fatal(errBeta)
+		}
+		errHeartbeat = c2.SendHeartbeat(context.Background(), lockedItemBeta)
+		if errHeartbeat != nil {
+			t.Fatal("cannot send heartbeat: ", errHeartbeat)
+		}
+
+		errHeartbeat = c.SendHeartbeat(context.Background(), lockedItemAlpha)
+		if errHeartbeat == nil {
+			t.Fatal("concurrent heartbeats should knock one another out")
+		} else {
+			t.Log("send heartbeat for lockedItemAlpha:", errHeartbeat)
+		}
+	})
+}
+
+func TestHeartbeatReadOnlyLock(t *testing.T) {
+	t.Parallel()
+	svc := dynamodb.NewFromConfig(defaultConfig(t))
+	newClient := func() (*dynamolock.Client, error) {
+		return dynamolock.New(svc,
+			"locks",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatReadOnlyLock#1"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+	}
+	c, err := newClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("ensuring table exists")
+	_, _ = c.CreateTable(context.Background(), "locks",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+
+	const lockName = "readonly-lock"
+	if _, errAcquire := c.AcquireLock(context.Background(), lockName); errAcquire != nil {
+		t.Fatal(errAcquire)
+	}
+
+	roLockCache, err := c.Get(context.Background(), lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = c.SendHeartbeat(context.Background(), roLockCache)
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	c2, err := newClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	roLockDB, err := c2.Get(context.Background(), lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = c2.SendHeartbeat(context.Background(), roLockDB)
+	if !errors.Is(err, dynamolock.ErrReadOnlyLockHeartbeat) {
+		t.Fatal("expected heartbeat to fail a read-only lock (loaded from DB)")
+	}
+}
+
+type interceptedDynamoDBClient struct {
+	dynamolock.DynamoDBClient
+
+	createTablePre func(context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options)) (context.Context, *dynamodb.CreateTableInput, []func(*dynamodb.Options))
+	getItemPost    func(*dynamodb.GetItemOutput, error) (*dynamodb.GetItemOutput, error)
+	updateItemPost func(*dynamodb.UpdateItemOutput, error) (*dynamodb.UpdateItemOutput, error)
+}
+
+func (m *interceptedDynamoDBClient) CreateTable(
+	ctx context.Context,
+	params *dynamodb.CreateTableInput,
+	optFns ...func(*dynamodb.Options),
+) (*dynamodb.CreateTableOutput, error) {
+	if m.createTablePre != nil {
+		ctx, params, optFns = m.createTablePre(ctx, params, optFns)
+	}
+	return m.DynamoDBClient.CreateTable(ctx, params, optFns...)
+}
+
+func (m *interceptedDynamoDBClient) GetItem(
+	ctx context.Context,
+	params *dynamodb.GetItemInput,
+	optFns ...func(*dynamodb.Options),
+) (*dynamodb.GetItemOutput, error) {
+	out, err := m.DynamoDBClient.GetItem(ctx, params, optFns...)
+	if m.getItemPost == nil {
+		return out, err
+	}
+	return m.getItemPost(out, err)
+}
+
+func (m *interceptedDynamoDBClient) UpdateItem(
+	ctx context.Context,
+	params *dynamodb.UpdateItemInput,
+	optFns ...func(*dynamodb.Options),
+) (*dynamodb.UpdateItemOutput, error) {
+	out, err := m.DynamoDBClient.UpdateItem(ctx, params, optFns...)
+	if m.updateItemPost == nil {
+		return out, err
+	}
+	return m.updateItemPost(out, err)
+}
+
+func TestHeartbeatRetry(t *testing.T) {
+	t.Parallel()
+	t.Run("noRetry", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"noRetry",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#noRetry"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := c2.SendHeartbeat(lockedItemBeta); err != nil {
-			t.Fatal("cannot send heartbeat: ", err)
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "noRetry",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var failUpdateItemOnce sync.Once
+		svc.updateItemPost = func(gio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			failUpdateItemOnce.Do(func() {
+				t.Log("NETWORK FAILURE")
+				gio = nil
+				err = errors.New("network failed")
+			})
+			return gio, err
 		}
 
-		if err := c.SendHeartbeat(lockedItemAlpha); err == nil {
-			t.Fatal("concurrent heartbeats should knock one another out")
-		} else {
-			t.Log("send heartbeat for lockedItemAlpha:", err)
+		err = c.SendHeartbeat(context.Background(), lock, dynamolock.HeartbeatRetries(0, 0))
+		if err == nil {
+			t.Fatal("unexpected error missing")
 		}
 	})
+	t.Run("retryOnce", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"retryOnce",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#retryOnce"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "retryOnce",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var failUpdateItemOnce sync.Once
+		svc.updateItemPost = func(gio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			failUpdateItemOnce.Do(func() {
+				t.Log("NETWORK FAILURE")
+				gio = nil
+				err = errors.New("network failed")
+			})
+			return gio, err
+		}
+
+		err = c.SendHeartbeat(context.Background(), lock, dynamolock.HeartbeatRetries(1, 0))
+		if err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+	})
+	t.Run("retryMany", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"retryMany",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#retryMany"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "retryMany",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const totalRetries = 2
+		var failUpdateItemCount int
+		svc.updateItemPost = func(gio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			if failUpdateItemCount < totalRetries {
+				t.Log("NETWORK FAILURE", failUpdateItemCount)
+				gio = nil
+				err = errors.New("network failed")
+				failUpdateItemCount++
+			}
+			return gio, err
+		}
+
+		err = c.SendHeartbeat(context.Background(), lock, dynamolock.HeartbeatRetries(totalRetries, 0))
+		if err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+	})
+	t.Run("badReadAfterFail", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"badReadAfterFail",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#badReadAfterFail"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "badReadAfterFail",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var failUpdateItemOnce sync.Once
+		svc.updateItemPost = func(uio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			failUpdateItemOnce.Do(func() {
+				t.Log("NETWORK FAILURE")
+				uio = nil
+				err = errors.New("network failed")
+			})
+			return uio, err
+		}
+		errExpected := errors.New("bad GetItemCall")
+		svc.getItemPost = func(gio *dynamodb.GetItemOutput, err error) (*dynamodb.GetItemOutput, error) {
+			return nil, errExpected
+		}
+
+		errHeartbeat := c.SendHeartbeat(context.Background(), lock, dynamolock.HeartbeatRetries(1, 0))
+		if !errors.Is(errHeartbeat, errExpected) {
+			t.Fatal("unexpected error:", errHeartbeat)
+		}
+	})
+	t.Run("canceledDuringRetry", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"canceledDuringRetry",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#canceledDuringRetry"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "canceledDuringRetry",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var failUpdateItemOnce sync.Once
+		svc.updateItemPost = func(uio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			failUpdateItemOnce.Do(func() {
+				t.Log("NETWORK FAILURE")
+				uio = nil
+				err = errors.New("network failed")
+			})
+			return uio, err
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		svc.getItemPost = func(gio *dynamodb.GetItemOutput, err error) (*dynamodb.GetItemOutput, error) {
+			defer cancel()
+			return gio, err
+		}
+
+		err = c.SendHeartbeat(ctx, lock, dynamolock.HeartbeatRetries(1, 0))
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal("unexpected error:", err)
+		}
+	})
+
+	t.Run("lostDuringHeartbeatRetry", func(t *testing.T) {
+		t.Parallel()
+		svc := &interceptedDynamoDBClient{
+			DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+		}
+		c, err := dynamolock.New(svc,
+			"lostDuringHeartbeatRetry",
+			dynamolock.WithLeaseDuration(3*time.Second),
+			dynamolock.WithOwnerName("TestHeartbeatRetry#lostDuringHeartbeatRetry"),
+			dynamolock.DisableHeartbeat(),
+			dynamolock.WithPartitionKeyName("key"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("ensuring table exists")
+		_, _ = c.CreateTable(context.Background(), "lostDuringHeartbeatRetry",
+			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			}),
+			dynamolock.WithCustomPartitionKeyName("key"),
+		)
+		const lockName = "lock-heartbeat-retry"
+		lock, err := c.AcquireLock(context.Background(), lockName)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var failUpdateItemOnce sync.Once
+		svc.updateItemPost = func(uio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+			failUpdateItemOnce.Do(func() {
+				t.Log("NETWORK FAILURE")
+				uio = nil
+				err = errors.New("network failed")
+			})
+			return uio, err
+		}
+
+		svc.getItemPost = func(gio *dynamodb.GetItemOutput, err error) (*dynamodb.GetItemOutput, error) {
+			gio.Item["recordVersionNumber"] = &types.AttributeValueMemberS{Value: "stole-rvn"}
+			return gio, err
+		}
+
+		err = c.SendHeartbeat(context.Background(), lock, dynamolock.HeartbeatRetries(1, 0))
+		if !errors.As(err, new(*dynamolock.LockNotGrantedError)) {
+			t.Fatal("unexpected error:", err)
+		}
+	})
+}
+
+func TestHeartbeatOwnerMatching(t *testing.T) {
+	t.Parallel()
+
+	svc := &interceptedDynamoDBClient{
+		DynamoDBClient: dynamodb.NewFromConfig(defaultConfig(t)),
+	}
+	c, err := dynamolock.New(svc,
+		"noRetry",
+		dynamolock.WithLeaseDuration(3*time.Second),
+		dynamolock.WithOwnerName("TestHeartbeatOwnerMatching"),
+		dynamolock.DisableHeartbeat(),
+		dynamolock.WithPartitionKeyName("key"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("ensuring table exists")
+	_, _ = c.CreateTable(context.Background(), "noRetry",
+		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(5),
+			WriteCapacityUnits: aws.Int64(5),
+		}),
+		dynamolock.WithCustomPartitionKeyName("key"),
+	)
+	const lockName = "lock-heartbeat-retry"
+	lock, err := c.AcquireLock(context.Background(), lockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var failUpdateItemOnce sync.Once
+	svc.updateItemPost = func(gio *dynamodb.UpdateItemOutput, err error) (*dynamodb.UpdateItemOutput, error) {
+		failUpdateItemOnce.Do(func() {
+			t.Log("NETWORK FAILURE")
+			gio = nil
+			err = errors.New("network failed")
+		})
+		return gio, err
+	}
+
+	// Heartbeat sent, but response missed...
+	err = c.SendHeartbeat(context.Background(), lock)
+	if err == nil {
+		t.Fatal("unexpected error missing on first heartbeat")
+	}
+
+	// ... prove the response is missed ...
+	err = c.SendHeartbeat(context.Background(), lock)
+	if err == nil {
+		t.Fatal("expeted error for vanilla retry missing")
+	}
+
+	// ... prove the owner is the same.
+	err = c.SendHeartbeat(context.Background(), lock, dynamolock.UnsafeMatchOwnerOnly())
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
 }

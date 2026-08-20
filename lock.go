@@ -1,5 +1,5 @@
 /*
-Copyright 2015 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@ limitations under the License.
 package dynamolock
 
 import (
+	"context"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // Lock item properly speaking.
@@ -40,7 +42,7 @@ type Lock struct {
 	lookupTime           time.Time
 	recordVersionNumber  string
 	leaseDuration        time.Duration
-	additionalAttributes map[string]*dynamodb.AttributeValue
+	additionalAttributes map[string]types.AttributeValue
 }
 
 // Data returns the content of the lock, if any is available.
@@ -51,13 +53,13 @@ func (l *Lock) Data() []byte {
 	return l.data
 }
 
-// Close releases the lock.
-func (l *Lock) Close() error {
+// Close releases the lock using the given context.
+func (l *Lock) Close(ctx context.Context) error {
 	if l != nil && l.client != nil {
 		if l.IsExpired() {
 			return ErrLockAlreadyReleased
 		}
-		_, err := l.client.ReleaseLock(l)
+		_, err := l.client.ReleaseLock(ctx, l)
 		return err
 	}
 	return ErrCannotReleaseNullLock
@@ -78,10 +80,6 @@ func (l *Lock) IsExpired() bool {
 }
 
 func (l *Lock) isExpired() bool {
-	if l == nil {
-		return true
-	}
-
 	if l.isReleased {
 		return true
 	}
@@ -104,12 +102,10 @@ func (l *Lock) OwnerName() string {
 
 // AdditionalAttributes returns the lock's additional data stored during
 // acquisition.
-func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
-	addAttr := make(map[string]*dynamodb.AttributeValue)
+func (l *Lock) AdditionalAttributes() map[string]types.AttributeValue {
+	addAttr := make(map[string]types.AttributeValue)
 	if l != nil {
-		for k, v := range l.additionalAttributes {
-			addAttr[k] = v
-		}
+		maps.Copy(addAttr, l.additionalAttributes)
 	}
 	return addAttr
 }
@@ -121,10 +117,18 @@ func (l *Lock) AdditionalAttributes() map[string]*dynamodb.AttributeValue {
 // "danger zone". It returns false if the lock has not been released and the
 // lock has not yet entered the "danger zone".
 func (l *Lock) IsAlmostExpired() (bool, error) {
-	t, err := l.timeUntilDangerZoneEntered()
-	if err != nil {
-		return false, err
+	if l == nil {
+		return false, ErrLockAlreadyReleased
 	}
+	l.semaphore.Lock()
+	defer l.semaphore.Unlock()
+	if l.sessionMonitor == nil {
+		return false, ErrSessionMonitorNotSet
+	}
+	if l.isExpired() {
+		return false, ErrLockAlreadyReleased
+	}
+	t := l.timeUntilDangerZoneEntered()
 	return t <= 0, nil
 }
 
@@ -136,15 +140,6 @@ var (
 	ErrOwnerMismatched       = errors.New("lock owner mismatched")
 )
 
-func (l *Lock) timeUntilDangerZoneEntered() (time.Duration, error) {
-	if l == nil {
-		return 0, ErrLockAlreadyReleased
-	}
-	if l.sessionMonitor == nil {
-		return 0, ErrSessionMonitorNotSet
-	}
-	if l.IsExpired() {
-		return 0, ErrLockAlreadyReleased
-	}
-	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime), nil
+func (l *Lock) timeUntilDangerZoneEntered() time.Duration {
+	return l.sessionMonitor.timeUntilLeaseEntersDangerZone(l.lookupTime)
 }

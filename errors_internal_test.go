@@ -1,5 +1,5 @@
 /*
-Copyright 2019 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ package dynamolock
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestLockNotGrantedError(t *testing.T) {
@@ -39,6 +39,7 @@ func TestLockNotGrantedError(t *testing.T) {
 		}
 	})
 	t.Run("not granted with cause", func(t *testing.T) {
+		t.Parallel()
 		const expectedAge = 5 * time.Minute
 		notGranted := &LockNotGrantedError{
 			msg:   "not granted with cause",
@@ -59,11 +60,20 @@ func TestParseDynamoDBError(t *testing.T) {
 	t.Parallel()
 
 	vanilla := errors.New("root error")
-	if err := parseDynamoDBError(vanilla, ""); err != vanilla {
+	if err := parseDynamoDBError(vanilla, ""); !errors.Is(err, vanilla) {
 		t.Error("wrong error wrapping (vanilla):", err)
 	}
-	errAWS := awserr.New(dynamodb.ErrCodeConditionalCheckFailedException, "conditional check failed", vanilla)
-	if err, ok := parseDynamoDBError(errAWS, "").(*LockNotGrantedError); err == nil || !ok {
+	errAWS := fmt.Errorf("envelope: %w", &types.ConditionalCheckFailedException{Message: new("conditional check failed")})
+	err := parseDynamoDBError(errAWS, "")
+	if !isLockNotGrantedError(err) {
 		t.Error("wrong error wrapping (awserr):", err)
 	}
+}
+
+func isLockNotGrantedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var errLockNotGranted *LockNotGrantedError
+	return errors.As(err, &errLockNotGranted)
 }

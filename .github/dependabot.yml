@@ -1,12 +1,12 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/v2"
+    directory: "/"
     allow:
       - dependency-type: "all"
     schedule:
       interval: "daily"
   - package-ecosystem: github-actions
-    directory: /
+    directory: "/"
     schedule:
       interval: daily

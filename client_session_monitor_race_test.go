@@ -19,10 +19,11 @@ limitations under the License.
 package dynamolock_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"cirello.io/dynamolock/v2"
+	dynamolock "cirello.io/dynamolock/v5"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -43,7 +44,7 @@ func TestSessionMonitorRaceCondition(t *testing.T) {
 	}
 
 	t.Log("ensuring table exists")
-	c.CreateTable("locks",
+	c.CreateTable(context.Background(), "locks",
 		dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(5),
 			WriteCapacityUnits: aws.Int64(5),
@@ -52,7 +53,7 @@ func TestSessionMonitorRaceCondition(t *testing.T) {
 	)
 
 	data := []byte("some content a")
-	_, err = c.AcquireLock("uhura",
+	_, err = c.AcquireLock(context.Background(), "uhura",
 		dynamolock.WithData(data),
 		dynamolock.ReplaceData(),
 		dynamolock.WithSessionMonitor(500*time.Millisecond, func() {}),

@@ -1,5 +1,5 @@
 /*
-Copyright 2015 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,66 +23,66 @@ limitations under the License.
 //
 // Basic usage:
 //
-//	import (
-//		"log"
+//		import (
+//			"context"
+//			"log"
+//			"time"
 //
-//		"cirello.io/dynamolock"
-//		"github.com/aws/aws-sdk-go/aws"
-//		"github.com/aws/aws-sdk-go/aws/session"
-//		"github.com/aws/aws-sdk-go/service/dynamodb"
-//	)
+//			"cirello.io/dynamolock/v5"
+//			"github.com/aws/aws-sdk-go-v2/aws"
+//			"github.com/aws/aws-sdk-go-v2/config"
+//			"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+//			"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+//		)
 //
-//	// ---
+//		//---
 //
-//	svc := dynamodb.New(session.Must(session.NewSession(&aws.Config{
-//		Region: aws.String("us-west-2"),
-//	})))
-//	c, err := dynamolock.New(svc,
-//		"locks",
-//		dynamolock.WithLeaseDuration(3*time.Second),
-//		dynamolock.WithHeartbeatPeriod(1*time.Second),
-//	)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	defer c.Close()
+//		cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-west-2"))
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		c, err := dynamolock.New(dynamodb.NewFromConfig(cfg),
+//			"locks",
+//			dynamolock.WithLeaseDuration(3*time.Second),
+//			dynamolock.WithHeartbeatPeriod(1*time.Second),
+//		)
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//		defer c.Close(context.Background())
 //
-//	log.Println("ensuring table exists")
-//	c.CreateTable("locks",
-//		dynamolock.WithProvisionedThroughput(&dynamodb.ProvisionedThroughput{
-//			ReadCapacityUnits:  aws.Int64(5),
-//			WriteCapacityUnits: aws.Int64(5),
-//		}),
-//		dynamolock.WithCustomPartitionKeyName("key"),
-//	)
+//		log.Println("ensuring table exists")
+//		c.CreateTable(context.Background(), "locks",
+//			dynamolock.WithProvisionedThroughput(&types.ProvisionedThroughput{
+//				ReadCapacityUnits:  aws.Int64(5),
+//				WriteCapacityUnits: aws.Int64(5),
+//			}),
+//			dynamolock.WithCustomPartitionKeyName("key"),
+//		)
 //
-//  // -- at this point you must wait for DynamoDB to complete the creation.
+//	 //-- at this point you must wait for DynamoDB to complete the creation.
 //
-//	data := []byte("some content a")
-//	lockedItem, err := c.AcquireLock("spock",
-//		dynamolock.WithData(data),
-//		dynamolock.ReplaceData(),
-//	)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
+//		data := []byte("some content a")
+//		lockedItem, err := c.AcquireLock(context.Background(), "spock",
+//			dynamolock.WithData(data),
+//			dynamolock.ReplaceData(),
+//		)
+//		if err != nil {
+//			log.Fatal(err)
+//		}
 //
-//	log.Println("lock content:", string(lockedItem.Data()))
-//	if got := string(lockedItem.Data()); string(data) != got {
-//		log.Println("losing information inside lock storage, wanted:", string(data), " got:", got)
-//	}
+//		log.Println("lock content:", string(lockedItem.Data()))
+//		if got := string(lockedItem.Data()); string(data) != got {
+//			log.Println("losing information inside lock storage, wanted:", string(data), " got:", got)
+//		}
 //
-//	log.Println("cleaning lock")
-//	success, err := c.ReleaseLock(lockedItem)
-//	if !success {
-//		log.Fatal("lost lock before release")
-//	}
-//	if err != nil {
-//		log.Fatal("error releasing lock:", err)
-//	}
-//	log.Println("done")
-//
-// This package is covered by this SLA:
-// https://github.com/cirello-io/public/blob/master/SLA.md
-//
-package dynamolock // import "cirello.io/dynamolock"
+//		log.Println("cleaning lock")
+//		success, err := c.ReleaseLock(context.Background(), lockedItem)
+//		if !success {
+//			log.Fatal("lost lock before release")
+//		}
+//		if err != nil {
+//			log.Fatal("error releasing lock:", err)
+//		}
+//		log.Println("done")
+package dynamolock // import "cirello.io/dynamolock/v5"

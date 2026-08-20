@@ -4,11 +4,11 @@ on:
   push:
     branches: [master]
     paths:
-      - 'v2/**'
+      - '**'
   pull_request:
     branches: [master]
     paths:
-      - 'v2/**'
+      - '**'
 
 jobs:
   build:
@@ -23,17 +23,14 @@ jobs:
           go-version: "stable"
 
       - name: Download DynamoDB Local
-        working-directory: v2/
         run: |
           set -e
           make local-dynamodb
 
       - name: Test
-        working-directory: v2/
         run: |
           make test
 
       - name: Linters
-        working-directory: v2/
         run: |
           make linters

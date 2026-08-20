@@ -1,5 +1,5 @@
 /*
-Copyright 2015 github.com/ucirello
+Copyright 2026 U. Cirello (cirello.io and github.com/cirello-io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package dynamolock
 import (
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 type acquireLockOptions struct {
@@ -30,7 +30,7 @@ type acquireLockOptions struct {
 	failIfLocked                bool
 	refreshPeriod               time.Duration
 	additionalTimeToWaitForLock time.Duration
-	additionalAttributes        map[string]*dynamodb.AttributeValue
+	additionalAttributes        map[string]types.AttributeValue
 	sessionMonitor              *sessionMonitor
 }
 
@@ -45,7 +45,7 @@ type getLockOptions struct {
 	start                             time.Time
 	replaceData                       bool
 	data                              []byte
-	additionalAttributes              map[string]*dynamodb.AttributeValue
+	additionalAttributes              map[string]types.AttributeValue
 	failIfLocked                      bool
 }
 
@@ -56,9 +56,10 @@ type releaseLockOptions struct {
 }
 
 type createDynamoDBTableOptions struct {
-	billingMode           string
-	provisionedThroughput *dynamodb.ProvisionedThroughput
+	billingMode           types.BillingMode
+	provisionedThroughput *types.ProvisionedThroughput
 	tableName             string
 	partitionKeyName      string
-	tags                  []*dynamodb.Tag
+	sortKeyName           string
+	tags                  []types.Tag
 }
