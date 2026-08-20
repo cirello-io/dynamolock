@@ -340,9 +340,8 @@ func (c *Client) acquireLock(ctx context.Context, opt *acquireLockOptions) (*Loc
 		data:                 opt.data,
 		additionalAttributes: attrs,
 		failIfLocked:         opt.failIfLocked,
-	}
 
-	getLockOptions.millisecondsToWait = defaultBuffer
+		millisecondsToWait: defaultBuffer}
 	if opt.additionalTimeToWaitForLock > 0 {
 		getLockOptions.millisecondsToWait = opt.additionalTimeToWaitForLock
 	}
