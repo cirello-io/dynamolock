@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.4
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.9.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.68.0
-	github.com/urfave/cli/v3 v3.11.0
+	github.com/urfave/cli/v3 v3.12.0
 )
 
 require (
